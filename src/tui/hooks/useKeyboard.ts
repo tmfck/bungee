@@ -66,25 +66,26 @@ export function useKeyboard(
     ["pagedown", handlers.onPageDown || (() => {})],
   ]);
 
-  // Обработчик события keypress
-  function handleKeypress(event: KeyEvent) {
-    const name = (event as any).name?.toLowerCase() || "";
-    const shift = (event as any).shift || false;
+	// Обработчик события keypress
+	function handleKeypress(event: KeyEvent) {
+		const name = (event as any).name?.toLowerCase() || "";
+		const shift = (event as any).shift || false;
 
-    // Обработка Shift+Tab
-    if (name === "tab" && shift && handlers.onShiftTab) {
-      handlers.onShiftTab();
-      return;
-    }
+		// Обработка Shift+Tab
+		if (name === "tab" && shift && handlers.onShiftTab) {
+			handlers.onShiftTab();
+			return;
+		}
 
-    // Поиск обработчика
-    const handler = keyMap.get(name);
-    if (handler) {
-      handler();
-    } else if (handlers.onKey) {
-      handlers.onKey(name);
-    }
-  }
+		// Поиск обработчика
+		const handler = keyMap.get(name);
+		if (handler) {
+			handler();
+		} else if (handlers.onKey) {
+			// Передаём оригинальное имя клавиши (без toLowerCase для букв)
+			handlers.onKey((event as any).name || name);
+		}
+	}
 
   // Подписка на события
   renderer.keyInput.on("keypress", handleKeypress);

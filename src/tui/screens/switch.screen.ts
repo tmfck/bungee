@@ -159,20 +159,21 @@ export function createSwitchScreen(store: Store) {
         })
       ),
 
-      // Статус порта
-      Box(
-        {
-          flexDirection: "column",
-          marginBottom: 1,
-          padding: 1,
-          border: { type: "line" },
-          borderColor: "gray",
-        },
-        Text({
-          content: "📊 Статус порта",
-          attributes: TextAttributes.BOLD,
-          marginBottom: 1,
-        }),
+	// Статус порта
+	Box(
+	{
+	flexDirection: "column",
+	marginBottom: 1,
+	padding: 1,
+	border: true,
+	borderStyle: "single",
+	borderColor: "gray",
+	},
+		Text({
+			content: "📊 Статус порта",
+			attributes: TextAttributes.BOLD,
+		}),
+		Box({ height: 1 }),
         Box(
           {
             flexDirection: "row",
@@ -209,21 +210,22 @@ export function createSwitchScreen(store: Store) {
         )
       ),
 
-      // Ошибки
-      errors
-        ? Box(
-            {
-              flexDirection: "column",
-              marginBottom: 1,
-              padding: 1,
-              border: { type: "line" },
-              borderColor: "gray",
-            },
-            Text({
-              content: "⚠️ Ошибки (за последний час)",
-              attributes: TextAttributes.BOLD,
-              marginBottom: 1,
-            }),
+	// Ошибки
+	errors
+	? Box(
+	{
+	flexDirection: "column",
+	marginBottom: 1,
+	padding: 1,
+	border: true,
+	borderStyle: "single",
+	borderColor: "gray",
+	},
+			Text({
+				content: "⚠️ Ошибки (за последний час)",
+				attributes: TextAttributes.BOLD,
+			}),
+			Box({ height: 1 }),
             Box(
               {
                 flexDirection: "row",
@@ -269,21 +271,22 @@ export function createSwitchScreen(store: Store) {
           )
         : null,
 
-      // Трафик
-      traffic
-        ? Box(
-            {
-              flexDirection: "column",
-              marginBottom: 1,
-              padding: 1,
-              border: { type: "line" },
-              borderColor: "gray",
-            },
-            Text({
-              content: "📈 Трафик",
-              attributes: TextAttributes.BOLD,
-              marginBottom: 1,
-            }),
+	// Трафик
+	traffic
+	? Box(
+	{
+	flexDirection: "column",
+	marginBottom: 1,
+	padding: 1,
+	border: true,
+	borderStyle: "single",
+	borderColor: "gray",
+	},
+			Text({
+				content: "📈 Трафик",
+				attributes: TextAttributes.BOLD,
+			}),
+			Box({ height: 1 }),
             // Входящий трафик
             Box(
               {

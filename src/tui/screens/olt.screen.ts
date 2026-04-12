@@ -159,20 +159,21 @@ export function createOLTScreen(store: Store) {
         })
       ),
 
-      // Информация ONU
-      Box(
-        {
-          flexDirection: "column",
-          marginBottom: 1,
-          padding: 1,
-          border: { type: "line" },
-          borderColor: "gray",
-        },
-        Text({
-          content: "📡 Информация ONU",
-          attributes: TextAttributes.BOLD,
-          marginBottom: 1,
-        }),
+	// Информация ONU
+	Box(
+	{
+	flexDirection: "column",
+	marginBottom: 1,
+	padding: 1,
+	border: true,
+	borderStyle: "single",
+	borderColor: "gray",
+	},
+		Text({
+			content: "📡 Информация ONU",
+			attributes: TextAttributes.BOLD,
+		}),
+		Box({ height: 1 }),
         Box(
           {
             flexDirection: "row",
@@ -218,20 +219,21 @@ export function createOLTScreen(store: Store) {
         )
       ),
 
-      // Уровень сигнала
-      Box(
-        {
-          flexDirection: "column",
-          marginBottom: 1,
-          padding: 1,
-          border: { type: "line" },
-          borderColor: "gray",
-        },
-        Text({
-          content: "📶 Уровень сигнала",
-          attributes: TextAttributes.BOLD,
-          marginBottom: 1,
-        }),
+	// Уровень сигнала
+	Box(
+	{
+	flexDirection: "column",
+	marginBottom: 1,
+	padding: 1,
+	border: true,
+	borderStyle: "single",
+	borderColor: "gray",
+	},
+		Text({
+			content: "📶 Уровень сигнала",
+			attributes: TextAttributes.BOLD,
+		}),
+		Box({ height: 1 }),
         // Rx Power
         createSignalBar("Rx Power", data.signal.rxPower, -8, -28, "dBm", "green"),
         // Tx Power

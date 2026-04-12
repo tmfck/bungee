@@ -210,15 +210,16 @@ export function createAbonentScreen(store: Store) {
         })
       ),
 
-      // Баланс
-      Box(
-        {
-          flexDirection: "row",
-          marginBottom: 1,
-          padding: 1,
-          border: { type: "line" },
-          borderColor: "gray",
-        },
+  // Баланс
+  Box(
+  {
+  flexDirection: "row",
+  marginBottom: 1,
+  padding: 1,
+  border: true,
+  borderStyle: "single",
+  borderColor: "gray",
+  },
         Text({
           content: `💰 Баланс: `,
         }),
@@ -229,18 +230,18 @@ export function createAbonentScreen(store: Store) {
         })
       ),
 
-      // Оборудование
-      Box(
-        {
-          flexDirection: "column",
-          marginTop: 1,
-          flexGrow: 1,
-        },
-        Text({
-          content: "🔧 Оборудование:",
-          attributes: TextAttributes.BOLD,
-          marginBottom: 1,
-        }),
+	// Оборудование
+	Box(
+	{
+	flexDirection: "column",
+	marginTop: 1,
+	flexGrow: 1,
+	},
+	Text({
+	content: "🔧 Оборудование:",
+	attributes: TextAttributes.BOLD,
+	}),
+	Box({ height: 1 }),
         abonent.equipment.length > 0
           ? createEquipmentTable(
               abonent.equipment,
