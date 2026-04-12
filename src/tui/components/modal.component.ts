@@ -24,23 +24,27 @@ export function createModal(props: ModalProps) {
     return Box(
       {
         position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         flexDirection: "column",
-        border: { type: "line" },
-        borderColor: "white",
-        backgroundColor: "black",
+        alignItems: "center",
+        justifyContent: "center",
       },
+      Box(
+        {
+          width,
+          flexDirection: "column",
+          borderColor: "white",
+          backgroundColor: "black",
+        },
       // Заголовок
       Box(
         {
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: { left: 1, right: 1, top: 0, bottom: 0 },
-          borderBottom: { type: "line" },
         },
         Text({
           content: title,
@@ -72,7 +76,6 @@ export function createModal(props: ModalProps) {
           justifyContent: "center",
           alignItems: "center",
           padding: 1,
-          borderTop: { type: "line" },
         },
         Text({
           content: "[ Enter ] Закрыть",
@@ -80,7 +83,8 @@ export function createModal(props: ModalProps) {
           fg: "cyan",
         })
       )
-    );
+    )
+  );
   }
 
   return {
@@ -118,7 +122,7 @@ export function createHelpModal(onClose?: () => void) {
     "ОКНО",
     "────────────────────────────────────────",
     "F1           Справка",
-    "F10 / Q      Выход",
+    "F10          Выход",
   ];
 
   return createModal({
@@ -170,61 +174,67 @@ export function createConfirmModal(
     return Box(
       {
         position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 50,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         flexDirection: "column",
-        border: { type: "line" },
-        borderColor: "yellow",
-        backgroundColor: "black",
+        alignItems: "center",
+        justifyContent: "center",
       },
-      // Заголовок
       Box(
         {
-          flexDirection: "row",
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 1,
-        },
-        Text({
-          content: title,
-          attributes: TextAttributes.BOLD,
-          fg: "yellow",
-        })
-      ),
-
-      // Сообщение
-      Box(
-        {
+          width: 50,
           flexDirection: "column",
-          alignItems: "center",
-          padding: 1,
+          borderColor: "yellow",
+          backgroundColor: "black",
         },
-        Text({
-          content: message,
-        })
-      ),
+        // Заголовок
+        Box(
+          {
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 1,
+          },
+          Text({
+            content: title,
+            attributes: TextAttributes.BOLD,
+            fg: "yellow",
+          })
+        ),
 
-      // Кнопки
-      Box(
-        {
-          flexDirection: "row",
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 1,
-          borderTop: { type: "line" },
-        },
-        Text({
-          content: "[ Y ] Да  ",
-          attributes: TextAttributes.BOLD,
-          fg: "green",
-        }),
-        Text({
-          content: "[ N ] Нет",
-          attributes: TextAttributes.BOLD,
-          fg: "red",
-        })
+        // Сообщение
+        Box(
+          {
+            flexDirection: "column",
+            alignItems: "center",
+            padding: 1,
+          },
+          Text({
+            content: message,
+          })
+        ),
+
+        // Кнопки
+        Box(
+          {
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 1,
+          },
+          Text({
+            content: "[ Y ] Да ",
+            attributes: TextAttributes.BOLD,
+            fg: "green",
+          }),
+          Text({
+            content: "[ N ] Нет",
+            attributes: TextAttributes.BOLD,
+            fg: "red",
+          })
+        )
       )
     );
   }

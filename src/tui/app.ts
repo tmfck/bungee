@@ -30,9 +30,12 @@ interface ScreenModule {
 // === Создание приложения ===
 
 export function createApp(renderer: CliRenderer) {
-  // Инициализация Store и Router
-  const store = createStore();
-  const router = createRouter(store);
+// Инициализация Store и Router
+const store = createStore();
+const router = createRouter(store);
+
+// Сохраняем ссылку на renderer для корректного выхода
+const rendererRef = renderer;
 
   // Регистрация экранов
   router.registerScreen("search", (s) => createSearchScreen(s));
@@ -63,14 +66,19 @@ export function createApp(renderer: CliRenderer) {
     onF10: () => {
       process.exit(0);
     },
-    onEscape: () => {
-      const state = store.getState();
-      if (state.isHelpVisible) {
-        store.hideHelp();
-      } else if (state.currentScreen !== "search") {
-        store.back();
-      }
+    onF12: () => {
+      renderer.console.toggle();
     },
+  onEscape: () => {
+    const state = store.getState();
+    if (state.isHelpVisible) {
+      store.hideHelp();
+    } else if (state.currentScreen === "search") {
+      rendererRef.destroy();
+    } else {
+      store.back();
+    }
+  },
     onKey: (key: string) => {
       // Передача клавиши текущему экрану
       if (currentScreen?.handleKey) {
@@ -79,11 +87,11 @@ export function createApp(renderer: CliRenderer) {
       }
 
       // Глобальные клавиши
-      switch (key.toLowerCase()) {
-        case "q":
-          process.exit(0);
-          break;
-      }
+      // switch (key.toLowerCase()) {
+      //   case "q":
+      //     process.exit(0);
+      //     break;
+      // }
     },
   });
 

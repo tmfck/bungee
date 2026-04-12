@@ -12,6 +12,7 @@ export interface KeyboardHandlers {
   onF3?: () => void;
   onF5?: () => void;
   onF10?: () => void;
+  onF12?: () => void;
   onEscape?: () => void;
   onEnter?: () => void;
   onArrowUp?: () => void;
@@ -46,6 +47,7 @@ export function useKeyboard(
     ["f3", handlers.onF3 || (() => {})],
     ["f5", handlers.onF5 || (() => {})],
     ["f10", handlers.onF10 || (() => {})],
+    ["f12", handlers.onF12 || (() => {})],
 
     // Специальные клавиши
     ["escape", handlers.onEscape || (() => {})],

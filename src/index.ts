@@ -3,7 +3,7 @@
  * Запускает TUI приложение
  */
 
-import { createCliRenderer, Box, Text, TextAttributes, ASCIIFont } from "@opentui/core";
+import { createCliRenderer, ConsolePosition, DebugOverlayCorner } from "@opentui/core";
 import { createApp } from "./tui/app.js";
 
 // === Главная функция ===
@@ -13,7 +13,19 @@ async function main() {
     // Создание CLI renderer
     const renderer = await createCliRenderer({
       exitOnCtrlC: true,
+      consoleOptions: {
+        position: ConsolePosition.BOTTOM,
+        sizePercent: 30,
+      },
+      targetFps: 5,
+      maxFps: 15,
     });
+
+    renderer.toggleDebugOverlay();
+    renderer.configureDebugOverlay({
+      enabled: true,
+      corner: DebugOverlayCorner.topRight,
+    })
 
     // Создание приложения
     const app = createApp(renderer);

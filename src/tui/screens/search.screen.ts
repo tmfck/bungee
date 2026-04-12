@@ -1,11 +1,11 @@
 /**
- * Экран поиска абонента
- * Основной экран для поиска и выбора абонента
- */
+* Экран поиска абонента
+* Основной экран для поиска и выбора абонента
+*/
 
-import { Box, Text, TextAttributes, Input } from "@opentui/core";
+import { Box, Text, TextAttributes, Input, InputRenderableEvents } from "@opentui/core";
 import type { Store } from "../store.js";
-import { createTable, createAbonentSearchTable } from "../components/table.component.js";
+import { createAbonentSearchTable } from "../components/table.component.js";
 import { createSpinner } from "../components/spinner.component.js";
 import { useNavigation } from "../hooks/useNavigation.js";
 
@@ -13,10 +13,15 @@ import { useNavigation } from "../hooks/useNavigation.js";
 
 export function createSearchScreen(store: Store) {
   let searchTimeout: Timer | null = null;
-  let currentQuery = "";
   let selectedIndex = 0;
 
   const spinner = createSpinner({ label: "Поиск", fg: "cyan" });
+
+  // Создаём Input один раз
+  const inputVNode = Input({
+    placeholder: "Поиск...",
+    value: "",
+  });
 
   // Навигация по результатам
   const navigation = useNavigation({
@@ -26,9 +31,7 @@ export function createSearchScreen(store: Store) {
       const state = store.getState();
       const abonent = state.searchResults[index];
       if (abonent) {
-        // Переход к карточке абонента
         store.setScreen("abonent");
-        // Загрузка деталей будет в экране абонента
       }
     },
     onChange: (index) => {
@@ -38,31 +41,23 @@ export function createSearchScreen(store: Store) {
 
   // Обработчик поиска с debounce
   async function handleSearch(query: string) {
-    currentQuery = query;
     store.setSearchQuery(query);
 
-    // Отмена предыдущего таймера
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
 
-    // Минимальная длина запроса
     if (query.length < 2) {
       store.clearSearchResults();
       navigation.setItemCount(0);
       return;
     }
 
-    // Debounce
     searchTimeout = setTimeout(async () => {
       store.setSearchLoading(true);
       spinner.start();
 
       try {
-        // TODO: Интеграция с ScraperService
-        // const results = await scraper.searchAbonent({ type: "account", value: query });
-        
-        // Заглушка для тестирования
         const mockResults = generateMockResults(query);
         store.setSearchResults(mockResults);
         navigation.setItemCount(mockResults.length);
@@ -75,105 +70,80 @@ export function createSearchScreen(store: Store) {
     }, 300);
   }
 
-  // Обработчик клавиш
-  function handleKey(key: string) {
-    if (navigation.handleKey(key)) {
-      return true;
-    }
+  // Немедленное выполнение поиска
+  async function executeSearch(query: string) {
+    store.setSearchLoading(true);
+    spinner.start();
 
-    switch (key.toLowerCase()) {
-      case "/":
-        // Фокус на поле поиска
-        return true;
-      default:
-        return false;
+    try {
+      const mockResults = generateMockResults(query);
+      store.setSearchResults(mockResults);
+      navigation.setItemCount(mockResults.length);
+      selectedIndex = 0;
+    } catch (error) {
+      store.setSearchError(error instanceof Error ? error.message : "Ошибка поиска");
+    } finally {
+      spinner.stop();
     }
   }
+
+  // Подписываемся на события Input
+  inputVNode.on(InputRenderableEvents.INPUT, (value: string) => {
+    handleSearch(value);
+  });
+
+  inputVNode.on(InputRenderableEvents.ENTER, () => {
+    const state = store.getState();
+    if (state.searchQuery.length >= 2) {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      executeSearch(state.searchQuery);
+    }
+  });
 
   function render() {
     const state = store.getState();
 
     return Box(
-      {
-        flexDirection: "column",
-        flexGrow: 1,
-        padding: 1,
-      },
-      // Заголовок
-      Text({
-        content: "Поиск абонента",
-        attributes: TextAttributes.BOLD,
-        fg: "cyan",
-      }),
+      { flexDirection: "column", flexGrow: 1, padding: 1 },
 
-      // Поле поиска
       Box(
-        {
-          marginTop: 1,
-          marginBottom: 1,
-          flexDirection: "column",
-        },
-        Text({
-          content: "Введите лицевой счёт, ФИО или адрес:",
-          attributes: TextAttributes.DIM,
-        }),
+        { flexDirection: "column" },
         Box(
           {
-            marginTop: 1,
-            border: { type: "line" },
             borderColor: state.focusedElement === "searchInput" ? "cyan" : "gray",
-            padding: 1,
+            borderStyle: "single",
+            padding: 0,
+            title: "Лицевой счёт, ФИО или адрес:",
+            titleAlignment: "left",
           },
-          Input({
-            placeholder: "Поиск...",
-            value: currentQuery,
-            onChange: handleSearch,
-            focus: state.focusedElement === "searchInput",
-          })
+          inputVNode
         )
       ),
 
-      // Результаты поиска
       Box(
-        {
-          flexDirection: "column",
-          flexGrow: 1,
-          marginTop: 1,
-        },
-        // Статус
+        { flexDirection: "column", flexGrow: 1, marginTop: 0 },
         state.searchLoading
           ? spinner.render()
           : state.searchError
-          ? Box(
-              {
-                flexDirection: "row",
-                alignItems: "center",
-              },
-              Text({
-                content: "✗ ",
-                fg: "red",
-              }),
-              Text({
-                content: state.searchError,
-                fg: "red",
-              })
-            )
-          : state.searchResults.length > 0
-          ? Text({
-              content: `Найдено: ${state.searchResults.length}`,
-              attributes: TextAttributes.DIM,
-            })
-          : currentQuery.length < 2
-          ? Text({
-              content: "Введите минимум 2 символа для поиска",
-              attributes: TextAttributes.DIM,
-            })
-          : Text({
-              content: "Ничего не найдено",
-              attributes: TextAttributes.DIM,
-            }),
+            ? Box(
+                { flexDirection: "row", alignItems: "center" },
+                Text({ content: "✗ ", fg: "red" }),
+                Text({ content: state.searchError, fg: "red" })
+              )
+            : state.searchResults.length > 0
+              ? Text({
+                  content: `Найдено: ${state.searchResults.length}`,
+                  attributes: TextAttributes.DIM,
+                })
+              : state.searchQuery.length < 2
+                ? Text({
+                    content: "Введите минимум 2 символа для поиска",
+                    attributes: TextAttributes.DIM,
+                  })
+                : Text({ content: "Ничего не найдено", attributes: TextAttributes.DIM }),
 
-        // Таблица результатов
         state.searchResults.length > 0
           ? createAbonentSearchTable(
               state.searchResults,
@@ -192,9 +162,8 @@ export function createSearchScreen(store: Store) {
 
   return {
     render,
-    handleKey,
     onEnter: () => {
-      store.setFocusedElement("searchInput");
+      inputVNode.focus();
     },
     onExit: () => {
       if (searchTimeout) {
@@ -208,32 +177,54 @@ export function createSearchScreen(store: Store) {
 // === Заглушка для тестирования ===
 
 function generateMockResults(query: string) {
-  // Моковые данные для тестирования UI
   const mockAbonents = [
     {
       id: "1",
       account: "123456",
       fullName: "Иванов Иван Иванович",
-      address: { full: "ул. Ленина, д. 15, кв. 42" },
+      address: {
+        city: "Город",
+        street: "ул. Ленина",
+        house: "15",
+        apartment: "42",
+        full: "ул. Ленина, д. 15, кв. 42"
+      },
+      tariff: "Базовый",
       status: "active" as const,
+      balance: 150.50,
     },
     {
       id: "2",
       account: "234567",
       fullName: "Петров Петр Петрович",
-      address: { full: "ул. Мира, д. 8, кв. 15" },
+      address: {
+        city: "Город",
+        street: "ул. Мира",
+        house: "8",
+        apartment: "15",
+        full: "ул. Мира, д. 8, кв. 15"
+      },
+      tariff: "Премиум",
       status: "active" as const,
+      balance: 200.00,
     },
     {
       id: "3",
       account: "345678",
       fullName: "Сидорова Анна Николаевна",
-      address: { full: "ул. Гагарина, д. 3, кв. 78" },
+      address: {
+        city: "Город",
+        street: "ул. Гагарина",
+        house: "3",
+        apartment: "78",
+        full: "ул. Гагарина, д. 3, кв. 78"
+      },
+      tariff: "Стандарт",
       status: "blocked" as const,
+      balance: -50.00,
     },
   ];
 
-  // Фильтрация по запросу
   return mockAbonents.filter(
     (a) =>
       a.account.includes(query) ||
