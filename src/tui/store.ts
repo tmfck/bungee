@@ -1,7 +1,10 @@
 /**
  * Центральное хранилище состояния TUI
  * Управляет всеми данными приложения и навигацией
+ * Использует Solid.js signals для реактивности
  */
+
+import { createSignal, createRoot } from "solid-js";
 
 // === Типы ===
 
@@ -42,6 +45,26 @@ export interface Equipment {
   ip?: string;
   port?: number;
   location?: string;
+  // Дополнительные поля для ONU
+  oltAddress?: string;
+  oltPort?: number;
+  // Список IP-MAC соответствий
+  ipMacList?: IpMacEntry[];
+  // Состояние порта (для switch)
+  portStatus?: "up" | "down";
+  portSpeed?: number;
+  // Заметка для порта
+  portNote?: string;
+  // Счётчики трафика
+  inOctets?: number;
+  outOctets?: number;
+  inErrors?: number;
+  outErrors?: number;
+}
+
+export interface IpMacEntry {
+  ip: string;
+  mac: string | null;
 }
 
 export type EquipmentType = "switch" | "olt" | "onu" | "router";
@@ -122,263 +145,296 @@ export interface ONUSignal {
   attenuation: number;
 }
 
-// === Состояние приложения ===
-
-export interface AppState {
-  // Навигация
-  currentScreen: ScreenId;
-  screenHistory: ScreenId[];
-
-  // Данные поиска
-  searchQuery: string;
-  searchResults: Abonent[];
-  searchLoading: boolean;
-  searchError: string | null;
-
-  // Выбранный абонент
-  selectedAbonent: AbonentDetails | null;
-  abonentLoading: boolean;
-  selectedEquipmentIndex: number;
-
-  // Диагностика Switch
-  switchData: PortStatus | null;
-  switchErrors: PortErrors | null;
-  switchTraffic: PortTraffic | null;
-  switchLoading: boolean;
-
-  // Диагностика OLT
-  oltData: ONUDetails | null;
-  oltLoading: boolean;
-
-  // UI состояние
-  isHelpVisible: boolean;
-  focusedElement: string | null;
-  statusMessage: string | null;
-}
-
-export type StoreSubscriber = (state: AppState) => void;
-
-// === Начальное состояние ===
-
-function createInitialState(): AppState {
-  return {
-    currentScreen: "search",
-    screenHistory: [],
-    searchQuery: "",
-    searchResults: [],
-    searchLoading: false,
-    searchError: null,
-    selectedAbonent: null,
-    abonentLoading: false,
-    selectedEquipmentIndex: 0,
-    switchData: null,
-    switchErrors: null,
-    switchTraffic: null,
-    switchLoading: false,
-    oltData: null,
-    oltLoading: false,
-    isHelpVisible: false,
-    focusedElement: "searchInput",
-    statusMessage: null,
-  };
-}
-
 // === Store ===
 
 export function createStore() {
-  let state: AppState = createInitialState();
-  const subscribers: Set<StoreSubscriber> = new Set();
+  return createRoot(() => {
+    // === Состояние навигации ===
+    const [currentScreen, setCurrentScreen] = createSignal<ScreenId>("search");
+    const [screenHistory, setScreenHistory] = createSignal<ScreenId[]>([]);
 
-  function notify() {
-    subscribers.forEach((fn) => fn(state));
+    // === Состояние поиска ===
+    const [searchQuery, setSearchQuery] = createSignal("");
+    const [searchInputValue, setSearchInputValue] = createSignal("");
+    const [searchResults, setSearchResults] = createSignal<Abonent[]>([]);
+    const [searchLoading, setSearchLoading] = createSignal(false);
+    const [searchError, setSearchError] = createSignal<string | null>(null);
+
+    // === Состояние абонента ===
+    const [selectedAbonent, setSelectedAbonent] = createSignal<AbonentDetails | null>(null);
+    const [abonentLoading, setAbonentLoading] = createSignal(false);
+    const [selectedEquipmentIndex, setSelectedEquipmentIndex] = createSignal(0);
+
+    // === Состояние диагностики Switch ===
+    const [switchData, setSwitchData] = createSignal<PortStatus | null>(null);
+    const [switchErrors, setSwitchErrors] = createSignal<PortErrors | null>(null);
+    const [switchTraffic, setSwitchTraffic] = createSignal<PortTraffic | null>(null);
+    const [switchLoading, setSwitchLoading] = createSignal(false);
+
+    // === Состояние диагностики OLT ===
+    const [oltData, setOltData] = createSignal<ONUDetails | null>(null);
+    const [oltLoading, setOltLoading] = createSignal(false);
+
+    // === UI состояние ===
+    const [isHelpVisible, setIsHelpVisible] = createSignal(false);
+    const [focusedElement, setFocusedElement] = createSignal<string | null>("searchInput");
+    const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
+
+    // === Методы навигации ===
+    function navigateTo(screen: ScreenId) {
+      setScreenHistory((prev) => [...prev, currentScreen()]);
+      setCurrentScreen(screen);
+    }
+
+    function goBack() {
+      const history = screenHistory();
+      if (history.length === 0) {
+        setCurrentScreen("search");
+        return;
+      }
+      const previous = history[history.length - 1]!;
+      setScreenHistory(history.slice(0, -1));
+      setCurrentScreen(previous);
+    }
+
+    // === Методы поиска ===
+    function clearSearchResults() {
+      setSearchResults([]);
+      setSearchError(null);
+    }
+
+    function setFullSearchResults(results: Abonent[]) {
+      setSearchResults(results);
+      setSearchLoading(false);
+      setSearchError(null);
+    }
+
+    // === Методы абонента ===
+    function setFullSelectedAbonent(abonent: AbonentDetails) {
+      setSelectedAbonent(abonent);
+      setAbonentLoading(false);
+      setSelectedEquipmentIndex(0);
+    }
+
+  // Выбор абонента из результатов поиска (конвертирует Abonent в AbonentDetails)
+  function selectAbonentFromSearch(abonent: Abonent) {
+    // Для организации "МедЦентр Плюс" - несколько подключений с разными состояниями
+    if (abonent.account === "12345") {
+      const details: AbonentDetails = {
+        ...abonent,
+        equipment: [
+          // Switch 1: порт up, 1G, без ошибок
+          {
+            type: "switch",
+            model: "D-Link DGS-1210-28",
+            mac: "AA:BB:CC:DD:EE:01",
+            ip: "10.0.0.5",
+            port: 1,
+            portStatus: "up",
+            portSpeed: 1000,
+            portNote: "оптика медики",
+            inOctets: 5368709120, // 5 GB
+            outOctets: 10737418240, // 10 GB
+            inErrors: 0,
+            outErrors: 0,
+            ipMacList: [
+              { ip: "192.168.1.10", mac: "AA:BB:CC:11:01:01" },
+            ],
+          },
+          // Switch 2: порт up, 100M, есть ошибки
+          {
+            type: "switch",
+            model: "D-Link DGS-1210-28",
+            mac: "AA:BB:CC:DD:EE:02",
+            ip: "10.0.0.6",
+            port: 5,
+            portStatus: "up",
+            portSpeed: 100,
+            portNote: "AP 192.168.1.50",
+            inOctets: 1073741824, // 1 GB
+            outOctets: 2147483648, // 2 GB
+            inErrors: 12,
+            outErrors: 3,
+            ipMacList: [
+              { ip: "192.168.1.50", mac: "AA:BB:CC:22:02:02" },
+            ],
+          },
+          // Switch 3: порт down
+          {
+            type: "switch",
+            model: "D-Link DGS-1210-28",
+            mac: "AA:BB:CC:DD:EE:03",
+            ip: "10.0.0.7",
+            port: 12,
+            portStatus: "down",
+            portSpeed: undefined,
+            portNote: "на крыше",
+            inOctets: 0,
+            outOctets: 0,
+            inErrors: 0,
+            outErrors: 0,
+            ipMacList: [],
+          },
+          // Switch 4: порт up, 10M (медленный линк)
+          {
+            type: "switch",
+            model: "D-Link DES-1008",
+            mac: "AA:BB:CC:DD:EE:04",
+            ip: "10.0.0.8",
+            port: 3,
+            portStatus: "up",
+            portSpeed: 10,
+            portNote: "старый кабель",
+            inOctets: 52428800, // 50 MB
+            outOctets: 104857600, // 100 MB
+            inErrors: 45,
+            outErrors: 23,
+            ipMacList: [
+              { ip: "192.168.1.60", mac: null },
+            ],
+          },
+          // ONU
+          {
+            type: "onu",
+            model: "Huawei HG8245H",
+            mac: "11:22:33:44:55:66",
+            ip: "192.168.1.100",
+            port: 3,
+            oltAddress: "10.0.0.1",
+            oltPort: 1,
+            ipMacList: [
+              { ip: "192.168.1.100", mac: "11:22:33:44:55:66" },
+            ],
+          },
+        ],
+        connections: [],
+        services: [],
+      };
+      setFullSelectedAbonent(details);
+      return;
+    }
+
+    // Для остальных абонентов - стандартный набор оборудования
+    const details: AbonentDetails = {
+      ...abonent,
+      equipment: [
+        {
+          type: "switch",
+          model: "D-Link DGS-1210-28",
+          mac: "AA:BB:CC:DD:EE:FF",
+          ip: "10.0.0.5",
+          port: 12,
+          portStatus: "up",
+          portSpeed: 1000,
+          portNote: "основной",
+          inOctets: 12345678,
+          outOctets: 87654321,
+          inErrors: 5,
+          outErrors: 2,
+          ipMacList: [
+            { ip: "192.168.1.100", mac: "AA:BB:CC:DD:EE:FF" },
+            { ip: "192.168.1.101", mac: "11:22:33:44:55:66" },
+          ],
+        },
+        {
+          type: "onu",
+          model: "Huawei HG8245H",
+          mac: "11:22:33:44:55:66",
+          ip: "192.168.1.100",
+          port: 3,
+          oltAddress: "10.0.0.1",
+          oltPort: 1,
+          ipMacList: [
+            { ip: "192.168.1.100", mac: "11:22:33:44:55:66" },
+          ],
+        },
+      ],
+      connections: [],
+      services: [],
+    };
+    setFullSelectedAbonent(details);
   }
 
-  return {
-    getState: () => state,
+    // === Методы диагностики Switch ===
+    function clearSwitchData() {
+      setSwitchData(null);
+      setSwitchErrors(null);
+      setSwitchTraffic(null);
+      setSwitchLoading(false);
+    }
 
-    subscribe(fn: StoreSubscriber) {
-      subscribers.add(fn);
-      return () => subscribers.delete(fn);
-    },
+    // === Методы диагностики OLT ===
+    function clearOltData() {
+      setOltData(null);
+      setOltLoading(false);
+    }
 
-    // === Навигация ===
+    // === Методы UI ===
+    function toggleHelp() {
+      setIsHelpVisible((prev) => !prev);
+    }
 
-    setScreen(screen: ScreenId) {
-      state = {
-        ...state,
-        screenHistory: [...state.screenHistory, state.currentScreen],
-        currentScreen: screen,
-      };
-      notify();
-    },
+    function showHelp() {
+      setIsHelpVisible(true);
+    }
 
-    back() {
-      const history = [...state.screenHistory];
-      const previous = history.pop() || "search";
-      state = {
-        ...state,
-        screenHistory: history,
-        currentScreen: previous,
-      };
-      notify();
-    },
+    function hideHelp() {
+      setIsHelpVisible(false);
+    }
 
-    // === Поиск ===
+    return {
+      // Signals (read-only)
+      currentScreen,
+      screenHistory,
+      searchQuery,
+      searchInputValue,
+      searchResults,
+      searchLoading,
+      searchError,
+      selectedAbonent,
+      abonentLoading,
+      selectedEquipmentIndex,
+      switchData,
+      switchErrors,
+      switchTraffic,
+      switchLoading,
+      oltData,
+      oltLoading,
+      isHelpVisible,
+      focusedElement,
+      statusMessage,
 
-    setSearchQuery(query: string) {
-      state = { ...state, searchQuery: query };
-      notify();
-    },
+      // Setters
+      setCurrentScreen,
+      setSearchQuery,
+      setSearchInputValue,
+      setSearchResults: setFullSearchResults,
+      setSearchLoading,
+      setSearchError,
+      setSelectedAbonent: setFullSelectedAbonent,
+      selectAbonentFromSearch,
+      setAbonentLoading,
+      setSelectedEquipmentIndex,
+      setSwitchData,
+      setSwitchErrors,
+      setSwitchTraffic,
+      setSwitchLoading,
+      setOltData,
+      setOltLoading,
+      setFocusedElement,
+      setStatusMessage,
 
-    setSearchResults(results: Abonent[]) {
-      state = {
-        ...state,
-        searchResults: results,
-        searchLoading: false,
-        searchError: null,
-      };
-      notify();
-    },
-
-    setSearchLoading(loading: boolean) {
-      state = { ...state, searchLoading: loading };
-      notify();
-    },
-
-    setSearchError(error: string | null) {
-      state = {
-        ...state,
-        searchError: error,
-        searchLoading: false,
-      };
-      notify();
-    },
-
-    clearSearchResults() {
-      state = {
-        ...state,
-        searchResults: [],
-        searchError: null,
-      };
-      notify();
-    },
-
-    // === Абонент ===
-
-    setSelectedAbonent(abonent: AbonentDetails) {
-      state = {
-        ...state,
-        selectedAbonent: abonent,
-        abonentLoading: false,
-        selectedEquipmentIndex: 0,
-      };
-      notify();
-    },
-
-    setAbonentLoading(loading: boolean) {
-      state = { ...state, abonentLoading: loading };
-      notify();
-    },
-
-    setSelectedEquipmentIndex(index: number) {
-      state = { ...state, selectedEquipmentIndex: index };
-      notify();
-    },
-
-    // === Диагностика Switch ===
-
-    setSwitchData(data: PortStatus) {
-      state = { ...state, switchData: data, switchLoading: false };
-      notify();
-    },
-
-    setSwitchErrors(errors: PortErrors) {
-      state = { ...state, switchErrors: errors };
-      notify();
-    },
-
-    setSwitchTraffic(traffic: PortTraffic) {
-      state = { ...state, switchTraffic: traffic };
-      notify();
-    },
-
-    setSwitchLoading(loading: boolean) {
-      state = { ...state, switchLoading: loading };
-      notify();
-    },
-
-    clearSwitchData() {
-      state = {
-        ...state,
-        switchData: null,
-        switchErrors: null,
-        switchTraffic: null,
-        switchLoading: false,
-      };
-      notify();
-    },
-
-    // === Диагностика OLT ===
-
-    setOltData(data: ONUDetails) {
-      state = { ...state, oltData: data, oltLoading: false };
-      notify();
-    },
-
-    setOltLoading(loading: boolean) {
-      state = { ...state, oltLoading: loading };
-      notify();
-    },
-
-    clearOltData() {
-      state = {
-        ...state,
-        oltData: null,
-        oltLoading: false,
-      };
-      notify();
-    },
-
-    // === UI ===
-
-    showHelp() {
-      state = { ...state, isHelpVisible: true };
-      notify();
-    },
-
-    hideHelp() {
-      state = { ...state, isHelpVisible: false };
-      notify();
-    },
-
-    toggleHelp() {
-      state = { ...state, isHelpVisible: !state.isHelpVisible };
-      notify();
-    },
-
-    setFocusedElement(element: string | null) {
-      state = { ...state, focusedElement: element };
-      notify();
-    },
-
-    setStatusMessage(message: string | null) {
-      state = { ...state, statusMessage: message };
-      notify();
-    },
-
-    // === Обновление ===
-
-    refresh() {
-      notify();
-    },
-
-    // === Сброс ===
-
-    reset() {
-      state = createInitialState();
-      notify();
-    },
-  };
+      // Methods
+      navigateTo,
+      goBack,
+      clearSearchResults,
+      clearSwitchData,
+      clearOltData,
+      toggleHelp,
+      showHelp,
+      hideHelp,
+    };
+  });
 }
 
 export type Store = ReturnType<typeof createStore>;
