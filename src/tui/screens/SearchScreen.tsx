@@ -6,6 +6,7 @@
 import { createSignal, createMemo, Show, For, onCleanup, onMount } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import type { Store, Abonent } from "../store.js";
+import { createUserSideClient, type UserSideConfig } from "../userside.js";
 
 interface SearchScreenProps {
   store: Store;
@@ -14,12 +15,16 @@ interface SearchScreenProps {
 export default function SearchScreen(props: SearchScreenProps) {
   const store = props.store;
 
-  // Локальное состояние только для selectedIndex и timeout
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [searchTimeout, setSearchTimeout] = createSignal<Timer | null>(null);
 
-  // Ref для input
   let inputRef: any = null;
+
+  const usersideConfig: UserSideConfig = {
+    baseUrl: process.env.USERSIDE_URL!,
+    cookie: process.env.USERSIDE_COOKIE!,
+  };
+  const userside = createUserSideClient(usersideConfig);
 
   // Автофокус на input при монтировании
   onMount(() => {
@@ -50,85 +55,10 @@ export default function SearchScreen(props: SearchScreenProps) {
     return "Ничего не найдено";
   });
 
-  // Mock данные
-  function generateMockResults(query: string): Abonent[] {
-    const mockAbonents: Abonent[] = [
-      {
-        id: "1",
-        account: "123456",
-        fullName: "Иванов Иван Иванович",
-        address: {
-          city: "Город",
-          street: "ул. Ленина",
-          house: "15",
-          apartment: "42",
-          full: "ул. Ленина, д. 15, кв. 42",
-        },
-        tariff: "Базовый",
-        status: "active",
-        balance: 150.5,
-      },
-      {
-        id: "2",
-        account: "234567",
-        fullName: "Петров Петр Петрович",
-        address: {
-          city: "Город",
-          street: "ул. Мира",
-          house: "8",
-          apartment: "15",
-          full: "ул. Мира, д. 8, кв. 15",
-        },
-        tariff: "Премиум",
-        status: "active",
-        balance: 200.0,
-      },
-      {
-        id: "3",
-        account: "345678",
-        fullName: "Сидорова Анна Николаевна",
-        address: {
-          city: "Город",
-          street: "ул. Гагарина",
-          house: "3",
-          apartment: "78",
-          full: "ул. Гагарина, д. 3, кв. 78",
-        },
-        tariff: "Стандарт",
-        status: "blocked",
-        balance: -50.0,
-      },
-      {
-        id: "4",
-        account: "12345",
-        fullName: "ООО 'МедЦентр Плюс'",
-        address: {
-          city: "Город",
-          street: "ул. Здоровья",
-          house: "1",
-          full: "ул. Здоровья, д. 1",
-        },
-        phone: "+7 (999) 555-00-00",
-        tariff: "Корпоративный",
-        status: "active",
-        balance: 15000.0,
-      },
-    ];
-
-    return mockAbonents.filter(
-      (a) =>
-        a.account.includes(query) ||
-        a.fullName.toLowerCase().includes(query.toLowerCase()) ||
-        a.address.full.toLowerCase().includes(query.toLowerCase())
-    );
-  }
-
-  // Обработчик поиска с debounce
-  function handleSearch(value: string) {
+  async function handleSearch(value: string) {
     store.setSearchQuery(value);
     store.setSearchInputValue(value);
 
-    // Очищаем предыдущий timeout
     const prevTimeout = searchTimeout();
     if (prevTimeout) {
       clearTimeout(prevTimeout);
@@ -139,17 +69,32 @@ export default function SearchScreen(props: SearchScreenProps) {
       return;
     }
 
-    // Debounce поиск
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(async () => {
       store.setSearchLoading(true);
-
-      // Симулируем поиск
-      setTimeout(() => {
-        const results = generateMockResults(value);
-        store.setSearchResults(results);
-        store.setSearchLoading(false);
+      
+      try {
+        const usResults = await userside.search(value);
+        const abonents: Abonent[] = usResults.map(r => ({
+          id: r.id,
+          account: r.account,
+          fullName: r.fullName,
+          address: {
+            city: "",
+            street: "",
+            house: "",
+            full: "",
+          },
+          tariff: "",
+          status: "active" as const,
+          balance: 0,
+        }));
+        store.setSearchResults(abonents);
         setSelectedIndex(0);
-      }, 300);
+      } catch (e) {
+        store.setSearchError(e instanceof Error ? e.message : "Ошибка поиска");
+      } finally {
+        store.setSearchLoading(false);
+      }
     }, 300);
 
     setSearchTimeout(timeout);
@@ -179,11 +124,54 @@ export default function SearchScreen(props: SearchScreenProps) {
   });
 
   // Функция выбора абонента
-  function selectAbonent(index: number) {
+  async function selectAbonent(index: number) {
     const selected = results()[index];
     if (selected) {
-      store.selectAbonentFromSearch(selected);
+      store.setAbonentLoading(true);
       store.navigateTo("abonent");
+      
+      try {
+        const details = await userside.getAbonent(selected.id);
+        
+        const abonentDetails = {
+          id: details.id,
+          account: details.account,
+          fullName: details.fullName,
+          address: {
+            ...details.address,
+            full: details.address.apartment 
+              ? `${details.address.full}, кв. ${details.address.apartment}`
+              : details.address.full,
+          },
+          phone: details.phone,
+          ip: details.ip,
+          tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
+          status: details.status.toLowerCase().includes('стоп') ? 'blocked' as const : 'active' as const,
+          balance: details.balance,
+          equipment: [
+            {
+              type: 'switch' as const,
+              model: details.connectionPoint.device,
+              mac: details.mac,
+              ip: details.connectionPoint.ip,
+              port: details.connectionPoint.port,
+              portStatus: undefined,
+              portSpeed: undefined,
+              ipMacList: [
+                { ip: details.ip, mac: details.mac },
+              ],
+            },
+          ],
+          connections: [],
+          services: [],
+        };
+        
+        store.setSelectedAbonent(abonentDetails);
+      } catch (e) {
+        console.error('[SearchScreen] Failed to load abonent:', e);
+        store.setAbonentLoading(false);
+        store.goBack();
+      }
     }
   }
 

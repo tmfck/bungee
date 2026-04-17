@@ -203,17 +203,22 @@ export default function AbonentScreen(props: AbonentScreenProps) {
         }
       }
     }
-    return entries;
-  }
+  return entries;
+ }
 
-  const allIpMacEntries = getAllIpMacEntries();
+  const allIpMacEntries = () => getAllIpMacEntries();
 
   return (
-    <Show when={abonent()} fallback={
+    <Show when={!store.abonentLoading()} fallback={
       <box flexDirection="column" flexGrow={1} padding={1} alignItems="center" justifyContent="center">
-        <text fg="#888">Нет данных об абоненте</text>
+        <text fg="#00d9ff">⏳ Загрузка данных абонента...</text>
       </box>
     }>
+      <Show when={abonent()} fallback={
+        <box flexDirection="column" flexGrow={1} padding={1} alignItems="center" justifyContent="center">
+          <text fg="#888">Нет данных об абоненте</text>
+        </box>
+      }>
       <box flexDirection="column" flexGrow={1} padding={1}>
         {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
         <box flexDirection="row" justifyContent="space-between">
@@ -246,10 +251,10 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           </box>
         </box>
 
-        {/* Таблица IP-MAC */}
-        <Show when={allIpMacEntries.length > 0}>
-          <box flexDirection="column" marginTop={1}>
-            <For each={allIpMacEntries}>
+      {/* Таблица IP-MAC */}
+      <Show when={allIpMacEntries().length > 0}>
+        <box flexDirection="column" marginTop={1}>
+          <For each={allIpMacEntries()}>
               {(entry) => (
                 <box flexDirection="row" gap={2}>
                   <text fg="#00d9ff">{entry.ip}</text>
@@ -270,7 +275,8 @@ export default function AbonentScreen(props: AbonentScreenProps) {
             {(eq, index) => renderEquipment(eq, index())}
           </For>
         </box>
-      </box>
+        </box>
+      </Show>
     </Show>
   );
 }
