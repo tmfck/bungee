@@ -42,27 +42,29 @@ export interface AbonentDetails extends Abonent {
 }
 
 export interface Equipment {
-  type: EquipmentType;
-  model: string;
-  mac: string;
-  ip?: string;
-  port?: number;
-  location?: string;
-  // Дополнительные поля для ONU
-  oltAddress?: string;
-  oltPort?: number;
-  // Список IP-MAC соответствий
-  ipMacList?: IpMacEntry[];
-  // Состояние порта (для switch)
-  portStatus?: "up" | "down";
-  portSpeed?: number;
-  // Заметка для порта
-  portNote?: string;
-  // Счётчики трафика
-  inOctets?: number;
-  outOctets?: number;
-  inErrors?: number;
-  outErrors?: number;
+	type: EquipmentType;
+	model: string;
+	mac: string;
+	ip?: string;
+	port?: number;
+	location?: string;
+	// Дополнительные поля для ONU
+	oltAddress?: string;
+	oltPort?: number;
+	// Список IP-MAC соответствий
+	ipMacList?: IpMacEntry[];
+	// Состояние порта (для switch)
+	portStatus?: "up" | "down";
+	portSpeed?: number;
+	// Заметка для порта
+	portNote?: string;
+	// Счётчики трафика
+	inOctets?: number;
+	outOctets?: number;
+	inErrors?: number;
+	outErrors?: number;
+	// Device ID для опроса состояния портов
+	deviceId?: string;
 }
 
 export interface IpMacEntry {
@@ -212,232 +214,129 @@ export function createStore() {
       setSearchError(null);
     }
 
-    // === Методы абонента ===
-    function setFullSelectedAbonent(abonent: AbonentDetails) {
-      setSelectedAbonent(abonent);
-      setAbonentLoading(false);
-      setSelectedEquipmentIndex(0);
-    }
+	// === Методы абонента ===
+	function setFullSelectedAbonent(abonent: AbonentDetails) {
+		setSelectedAbonent(abonent);
+		setAbonentLoading(false);
+		setSelectedEquipmentIndex(0);
+	}
 
-  // Выбор абонента из результатов поиска (конвертирует Abonent в AbonentDetails)
-  function selectAbonentFromSearch(abonent: Abonent) {
-    // Для организации "МедЦентр Плюс" - несколько подключений с разными состояниями
-    if (abonent.account === "12345") {
-      const details: AbonentDetails = {
-        ...abonent,
-        equipment: [
-          // Switch 1: порт up, 1G, без ошибок
-          {
-            type: "switch",
-            model: "D-Link DGS-1210-28",
-            mac: "AA:BB:CC:DD:EE:01",
-            ip: "10.0.0.5",
-            port: 1,
-            portStatus: "up",
-            portSpeed: 1000,
-            portNote: "оптика медики",
-            inOctets: 5368709120, // 5 GB
-            outOctets: 10737418240, // 10 GB
-            inErrors: 0,
-            outErrors: 0,
-            ipMacList: [
-              { ip: "192.168.1.10", mac: "AA:BB:CC:11:01:01" },
-            ],
-          },
-          // Switch 2: порт up, 100M, есть ошибки
-          {
-            type: "switch",
-            model: "D-Link DGS-1210-28",
-            mac: "AA:BB:CC:DD:EE:02",
-            ip: "10.0.0.6",
-            port: 5,
-            portStatus: "up",
-            portSpeed: 100,
-            portNote: "AP 192.168.1.50",
-            inOctets: 1073741824, // 1 GB
-            outOctets: 2147483648, // 2 GB
-            inErrors: 12,
-            outErrors: 3,
-            ipMacList: [
-              { ip: "192.168.1.50", mac: "AA:BB:CC:22:02:02" },
-            ],
-          },
-          // Switch 3: порт down
-          {
-            type: "switch",
-            model: "D-Link DGS-1210-28",
-            mac: "AA:BB:CC:DD:EE:03",
-            ip: "10.0.0.7",
-            port: 12,
-            portStatus: "down",
-            portSpeed: undefined,
-            portNote: "на крыше",
-            inOctets: 0,
-            outOctets: 0,
-            inErrors: 0,
-            outErrors: 0,
-            ipMacList: [],
-          },
-          // Switch 4: порт up, 10M (медленный линк)
-          {
-            type: "switch",
-            model: "D-Link DES-1008",
-            mac: "AA:BB:CC:DD:EE:04",
-            ip: "10.0.0.8",
-            port: 3,
-            portStatus: "up",
-            portSpeed: 10,
-            portNote: "старый кабель",
-            inOctets: 52428800, // 50 MB
-            outOctets: 104857600, // 100 MB
-            inErrors: 45,
-            outErrors: 23,
-            ipMacList: [
-              { ip: "192.168.1.60", mac: null },
-            ],
-          },
-          // ONU
-          {
-            type: "onu",
-            model: "Huawei HG8245H",
-            mac: "11:22:33:44:55:66",
-            ip: "192.168.1.100",
-            port: 3,
-            oltAddress: "10.0.0.1",
-            oltPort: 1,
-            ipMacList: [
-              { ip: "192.168.1.100", mac: "11:22:33:44:55:66" },
-            ],
-          },
-        ],
-        connections: [],
-        services: [],
-      };
-      setFullSelectedAbonent(details);
-      return;
-    }
+	function selectAbonentFromSearch(abonent: Abonent) {
+		const details: AbonentDetails = {
+			...abonent,
+			equipment: [],
+			connections: [],
+			services: [],
+		};
+		setFullSelectedAbonent(details);
+	}
 
-    // Для остальных абонентов - стандартный набор оборудования
-    const details: AbonentDetails = {
-      ...abonent,
-      equipment: [
-        {
-          type: "switch",
-          model: "D-Link DGS-1210-28",
-          mac: "AA:BB:CC:DD:EE:FF",
-          ip: "10.0.0.5",
-          port: 12,
-          portStatus: "up",
-          portSpeed: 1000,
-          portNote: "основной",
-          inOctets: 12345678,
-          outOctets: 87654321,
-          inErrors: 5,
-          outErrors: 2,
-          ipMacList: [
-            { ip: "192.168.1.100", mac: "AA:BB:CC:DD:EE:FF" },
-            { ip: "192.168.1.101", mac: "11:22:33:44:55:66" },
-          ],
-        },
-        {
-          type: "onu",
-          model: "Huawei HG8245H",
-          mac: "11:22:33:44:55:66",
-          ip: "192.168.1.100",
-          port: 3,
-          oltAddress: "10.0.0.1",
-          oltPort: 1,
-          ipMacList: [
-            { ip: "192.168.1.100", mac: "11:22:33:44:55:66" },
-          ],
-        },
-      ],
-      connections: [],
-      services: [],
-    };
-    setFullSelectedAbonent(details);
-  }
+	// === Методы диагностики Switch ===
+	function clearSwitchData() {
+		setSwitchData(null);
+		setSwitchErrors(null);
+		setSwitchTraffic(null);
+		setSwitchLoading(false);
+	}
 
-    // === Методы диагностики Switch ===
-    function clearSwitchData() {
-      setSwitchData(null);
-      setSwitchErrors(null);
-      setSwitchTraffic(null);
-      setSwitchLoading(false);
-    }
+	// === Методы диагностики OLT ===
+	function clearOltData() {
+		setOltData(null);
+		setOltLoading(false);
+	}
 
-    // === Методы диагностики OLT ===
-    function clearOltData() {
-      setOltData(null);
-      setOltLoading(false);
-    }
+	// === Методы обновления портов ===
+	function updateEquipmentPortData(
+		equipmentIndex: number,
+		data: {
+			portStatus?: "up" | "down";
+			portSpeed?: number;
+			inOctets?: number;
+			outOctets?: number;
+			inErrors?: number;
+			outErrors?: number;
+		}
+	) {
+		const current = selectedAbonent();
+		if (!current) return;
 
-    // === Методы UI ===
-    function toggleHelp() {
-      setIsHelpVisible((prev) => !prev);
-    }
+		const updatedEquipment = current.equipment.map((eq, idx) => {
+			if (idx === equipmentIndex) {
+				return { ...eq, ...data };
+			}
+			return eq;
+		});
 
-    function showHelp() {
-      setIsHelpVisible(true);
-    }
+		setSelectedAbonent({ ...current, equipment: updatedEquipment });
+	}
 
-    function hideHelp() {
-      setIsHelpVisible(false);
-    }
+	// === Методы UI ===
+	function toggleHelp() {
+		setIsHelpVisible((prev) => !prev);
+	}
 
-    return {
-      // Signals (read-only)
-      currentScreen,
-      screenHistory,
-      searchQuery,
-      searchInputValue,
-      searchResults,
-      searchLoading,
-      searchError,
-      selectedAbonent,
-      abonentLoading,
-      selectedEquipmentIndex,
-      switchData,
-      switchErrors,
-      switchTraffic,
-      switchLoading,
-      oltData,
-      oltLoading,
-      isHelpVisible,
-      focusedElement,
-      statusMessage,
+	function showHelp() {
+		setIsHelpVisible(true);
+	}
 
-      // Setters
-      setCurrentScreen,
-      setSearchQuery,
-      setSearchInputValue,
-      setSearchResults: setFullSearchResults,
-      setSearchLoading,
-      setSearchError,
-      setSelectedAbonent: setFullSelectedAbonent,
-      selectAbonentFromSearch,
-      setAbonentLoading,
-      setSelectedEquipmentIndex,
-      setSwitchData,
-      setSwitchErrors,
-      setSwitchTraffic,
-      setSwitchLoading,
-      setOltData,
-      setOltLoading,
-      setFocusedElement,
-      setStatusMessage,
+	function hideHelp() {
+		setIsHelpVisible(false);
+	}
 
-      // Methods
-      navigateTo,
-      goBack,
-      clearSearchResults,
-      clearSwitchData,
-      clearOltData,
-      toggleHelp,
-      showHelp,
-      hideHelp,
-    };
-  });
+	return {
+		// Signals (read-only)
+		currentScreen,
+		screenHistory,
+		searchQuery,
+		searchInputValue,
+		searchResults,
+		searchLoading,
+		searchError,
+		selectedAbonent,
+		abonentLoading,
+		selectedEquipmentIndex,
+		switchData,
+		switchErrors,
+		switchTraffic,
+		switchLoading,
+		oltData,
+		oltLoading,
+		isHelpVisible,
+		focusedElement,
+		statusMessage,
+
+		// Setters
+		setCurrentScreen,
+		setSearchQuery,
+		setSearchInputValue,
+		setSearchResults: setFullSearchResults,
+		setSearchLoading,
+		setSearchError,
+		setSelectedAbonent: setFullSelectedAbonent,
+		selectAbonentFromSearch,
+		setAbonentLoading,
+		setSelectedEquipmentIndex,
+		setSwitchData,
+		setSwitchErrors,
+		setSwitchTraffic,
+		setSwitchLoading,
+		setOltData,
+		setOltLoading,
+		setFocusedElement,
+		setStatusMessage,
+		updateEquipmentPortData,
+
+		// Methods
+		navigateTo,
+		goBack,
+		clearSearchResults,
+		clearSwitchData,
+		clearOltData,
+		toggleHelp,
+		showHelp,
+		hideHelp,
+	};
+});
 }
 
 export type Store = ReturnType<typeof createStore>;

@@ -35,11 +35,12 @@ export interface UserSideAbonentDetails {
   phone?: string;
   ip: string;
   mac: string;
-  connectionPoint: {
-    device: string;
-    ip: string;
-    port: number;
-  };
+	connectionPoint: {
+		device: string;
+		ip: string;
+		port: number;
+		deviceId?: string;
+	};
   activity: {
     network: string;
     internet: string;
@@ -48,61 +49,113 @@ export interface UserSideAbonentDetails {
   billingId: string;
 }
 
+export interface IfacePortData {
+	ifIndex: number;
+	ifType: number;
+	ifName: string;
+	ifNumber: number;
+	ifAlias: string;
+	ifAdminStatus: number;
+	ifOperStatus: number;
+	ifInErrors: number;
+	ifOutErrors: number;
+	ifHighSpeed?: number;
+	ifSpeed: number;
+	ifHCInOctets: number;
+	ifHCOutOctets: number;
+	ifInOctets: number;
+	ifOutOctets: number;
+	position: number;
+	count: number;
+}
+
+export interface IfaceJsonResponse {
+	time: number;
+	isIfaceAnimation: number;
+	data: IfacePortData[];
+}
+
 export function createUserSideClient(config: UserSideConfig) {
-  async function search(query: string): Promise<UserSideSearchResult[]> {
-    const url = `${config.baseUrl}/oper/?core_section=customer_list&action=ajax_search&search=${encodeURIComponent(query)}`;
+	async function search(query: string): Promise<UserSideSearchResult[]> {
+		const url = `${config.baseUrl}/oper/?core_section=customer_list&action=ajax_search&search=${encodeURIComponent(query)}`;
 
-    console.log(`[UserSide] Searching for: ${query}`);
-    console.log(`[UserSide] URL: ${url}`);
+		console.log(`[UserSide] Searching for: ${query}`);
+		console.log(`[UserSide] URL: ${url}`);
 
-    const response = await fetch(url, {
-      headers: {
-        'Cookie': config.cookie,
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-    });
+		const response = await fetch(url, {
+			headers: {
+				'Cookie': config.cookie,
+				'X-Requested-With': 'XMLHttpRequest',
+			},
+		});
 
-    if (!response.ok) {
-      console.error(`[UserSide] HTTP error: ${response.status}`);
-      throw new Error(`UserSide API error: ${response.status}`);
-    }
+		if (!response.ok) {
+			console.error(`[UserSide] HTTP error: ${response.status}`);
+			throw new Error(`UserSide API error: ${response.status}`);
+		}
 
-    const text = await response.text();
-    console.log(`[UserSide] Response: ${text}`);
+		const text = await response.text();
+		console.log(`[UserSide] Response: ${text}`);
 
-    const results = parseSearchResponse(text);
-    console.log(`[UserSide] Parsed results: ${JSON.stringify(results)}`);
+		const results = parseSearchResponse(text);
+		console.log(`[UserSide] Parsed results: ${JSON.stringify(results)}`);
 
-    return results;
-  }
+		return results;
+	}
 
-  async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
-    const url = `${config.baseUrl}/oper/?core_section=customer&action=show&id=${id}`;
+	async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
+		const url = `${config.baseUrl}/oper/?core_section=customer&action=show&id=${id}`;
 
-    console.log(`[UserSide] Fetching abonent: ${id}`);
-    console.log(`[UserSide] URL: ${url}`);
+		console.log(`[UserSide] Fetching abonent: ${id}`);
+		console.log(`[UserSide] URL: ${url}`);
 
-    const response = await fetch(url, {
-      headers: {
-        'Cookie': config.cookie,
-      },
-    });
+		const response = await fetch(url, {
+			headers: {
+				'Cookie': config.cookie,
+			},
+		});
 
-    if (!response.ok) {
-      console.error(`[UserSide] HTTP error: ${response.status}`);
-      throw new Error(`UserSide API error: ${response.status}`);
-    }
+		if (!response.ok) {
+			console.error(`[UserSide] HTTP error: ${response.status}`);
+			throw new Error(`UserSide API error: ${response.status}`);
+		}
 
-    const html = await response.text();
-    console.log(`[UserSide] Response length: ${html.length}`);
+		const html = await response.text();
+		console.log(`[UserSide] Response length: ${html.length}`);
 
-    const abonent = parseAbonentPage(html);
-    console.log(`[UserSide] Parsed abonent:`, abonent);
+		const abonent = parseAbonentPage(html);
+		console.log(`[UserSide] Parsed abonent:`, abonent);
 
-    return abonent;
-  }
+		return abonent;
+	}
 
-  return { search, getAbonent };
+	async function getIfaceData(deviceId: string, referer?: string): Promise<IfaceJsonResponse> {
+		const url = `${config.baseUrl}/oper/?core_section=device&action=iface_json_data&id=${deviceId}`;
+
+		console.log(`[UserSide] Fetching iface data for device: ${deviceId}`);
+
+		const headers: Record<string, string> = {
+			'Cookie': config.cookie,
+			'X-Requested-With': 'XMLHttpRequest',
+		};
+		if (referer) {
+			headers['Referer'] = referer;
+		}
+
+		const response = await fetch(url, { headers });
+
+		if (!response.ok) {
+			console.error(`[UserSide] HTTP error: ${response.status}`);
+			throw new Error(`UserSide API error: ${response.status}`);
+		}
+
+		const text = await response.text();
+		const data = JSON.parse(text) as IfaceJsonResponse;
+		console.log(`[UserSide] Iface data: ${data.data.length} ports`);
+		return data;
+	}
+
+	return { search, getAbonent, getIfaceData };
 }
 
 function parseSearchResponse(html: string): UserSideSearchResult[] {
@@ -219,10 +272,13 @@ function parseAbonentPage(html: string): UserSideAbonentDetails {
   const macMatch = html.match(/IP\/MAC-адреса[\s\S]*?<div>\s*[\d.]+\s*<\/div>\s*<div>\s*([A-F0-9:]+)/i);
   const mac = macMatch?.[1]?.trim() ?? '';
 
-  const deviceMatch = html.match(/Точка подключения:[\s\S]*?<i>([^<]+)<br>\s*IP:\s*([\d.]+)<br>\s*порт:\s*(\d+)/);
-  const deviceName = deviceMatch?.[1]?.trim() ?? '';
-  const deviceIp = deviceMatch?.[2]?.trim() ?? '';
-  const devicePort = deviceMatch?.[3] ? parseInt(deviceMatch[3], 10) : 0;
+	const deviceMatch = html.match(/Точка подключения:[\s\S]*?<i>([^<]+)<br>\s*IP:\s*([\d.]+)<br>\s*порт:\s*(\d+)/);
+	const deviceName = deviceMatch?.[1]?.trim() ?? '';
+	const deviceIp = deviceMatch?.[2]?.trim() ?? '';
+	const devicePort = deviceMatch?.[3] ? parseInt(deviceMatch[3], 10) : 0;
+
+	const deviceIdMatch = html.match(/Точка подключения:[\s\S]*?<a href="\?core_section=device&action=device&type2=show&code=(\d+)"/);
+	const deviceId = deviceIdMatch?.[1] ?? '';
 
   const activityNetMatch = html.match(/Активность в сети:[\s\S]*?<span[^>]*>([^<]+)<\/span>/);
   const activityNetwork = activityNetMatch?.[1]?.trim() ?? '';
@@ -236,38 +292,39 @@ function parseAbonentPage(html: string): UserSideAbonentDetails {
   const billingIdMatch = html.match(/ID в UTM5:[\s\S]*?<div>\s*(\d+)/);
   const billingId = billingIdMatch?.[1]?.trim() ?? '';
 
-  return {
-    id,
-    account,
-    fullName,
-    login,
-    contract,
-    balance,
-    status,
-    tariff: {
-      name: tariffName,
-      price: tariffPrice,
-    },
-    address: {
-      city,
-      street,
-      house,
-      apartment,
-      full: addressFull,
-    },
-    phone,
-    ip,
-    mac,
-    connectionPoint: {
-      device: deviceName,
-      ip: deviceIp,
-      port: devicePort,
-    },
-    activity: {
-      network: activityNetwork,
-      internet: activityInternet,
-    },
-    billing,
-    billingId,
-  };
+	return {
+		id,
+		account,
+		fullName,
+		login,
+		contract,
+		balance,
+		status,
+		tariff: {
+			name: tariffName,
+			price: tariffPrice,
+		},
+		address: {
+			city,
+			street,
+			house,
+			apartment,
+			full: addressFull,
+		},
+		phone,
+		ip,
+		mac,
+		connectionPoint: {
+			device: deviceName,
+			ip: deviceIp,
+			port: devicePort,
+			deviceId,
+		},
+		activity: {
+			network: activityNetwork,
+			internet: activityInternet,
+		},
+		billing,
+		billingId,
+	};
 }

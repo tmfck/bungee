@@ -1,65 +1,133 @@
 /**
- * Экран карточки абонента
- * Отображает детальную информацию об абоненте
- */
+* Экран карточки абонента
+* Отображает детальную информацию об абоненте
+*/
 
-import { Show, For, createSignal } from "solid-js";
+import { Show, For, createSignal, onCleanup, createEffect } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import { TextAttributes } from "@opentui/core";
 import type { Store, Equipment, IpMacEntry } from "../store.js";
+import { usersideClient } from "../App.jsx";
+
+const PORT_POLL_INTERVAL = 5000;
 
 interface AbonentScreenProps {
   store: Store;
 }
 
 function isWithinLastHour(timeStr: string): boolean {
-  if (!timeStr || timeStr === '-' || timeStr === '—') return false;
-  const match = timeStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if (!match) return false;
-  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-  return diffHours <= 1;
+	if (!timeStr || timeStr === '-' || timeStr === '—') return false;
+	const date = new Date(timeStr.replace(/(\d{2})\.(\d{2})\.(\d{4})/, '$3-$2-$1'));
+	if (isNaN(date.getTime())) return false;
+	const now = new Date();
+	const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+	return date >= hourAgo;
 }
 
 export default function AbonentScreen(props: AbonentScreenProps) {
-  const store = props.store;
-  const abonent = () => store.selectedAbonent();
-  const [selectedEquipment, setSelectedEquipment] = createSignal(0);
+	const store = props.store;
+	const abonent = () => store.selectedAbonent();
+	const [selectedEquipment, setSelectedEquipment] = createSignal(0);
+	let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+	let isActive = false;
 
-  useKeyboard((key) => {
-    if (store.currentScreen() !== "abonent") return false;
+	function startPolling() {
+		if (pollIntervalId) {
+			clearInterval(pollIntervalId);
+		}
+		pollPortStatus();
+		pollIntervalId = setInterval(pollPortStatus, PORT_POLL_INTERVAL);
+	}
 
-    switch (key.name) {
-      case "escape":
-        store.goBack();
-        return true;
-      case "up":
-        if (abonent() && selectedEquipment() > 0) {
-          setSelectedEquipment(prev => prev - 1);
-        }
-        return true;
-      case "down":
-        if (abonent() && selectedEquipment() < abonent()!.equipment.length - 1) {
-          setSelectedEquipment(prev => prev + 1);
-        }
-        return true;
-      case "return":
-      case "enter":
-        const eq = abonent()?.equipment[selectedEquipment()];
-        if (eq) {
-          if (eq.type === "switch") {
-            store.navigateTo("switch");
-          } else if (eq.type === "onu") {
-            store.navigateTo("olt");
-          }
-        }
-        return true;
-    }
+	function stopPolling() {
+		if (pollIntervalId) {
+			clearInterval(pollIntervalId);
+			pollIntervalId = null;
+		}
+	}
 
-    return false;
-  });
+	useKeyboard((key) => {
+		if (store.currentScreen() !== "abonent") return false;
+
+		switch (key.name) {
+			case "escape":
+				stopPolling();
+				store.goBack();
+				return true;
+			case "up":
+				if (abonent() && selectedEquipment() > 0) {
+					setSelectedEquipment(prev => prev - 1);
+				}
+				return true;
+			case "down":
+				if (abonent() && selectedEquipment() < abonent()!.equipment.length - 1) {
+					setSelectedEquipment(prev => prev + 1);
+				}
+				return true;
+			case "return":
+			case "enter":
+				const eq = abonent()?.equipment[selectedEquipment()];
+				if (eq) {
+					if (eq.type === "switch") {
+						stopPolling();
+						store.navigateTo("switch");
+					} else if (eq.type === "onu") {
+						stopPolling();
+						store.navigateTo("olt");
+					}
+				}
+				return true;
+		}
+
+		return false;
+	});
+
+	async function pollPortStatus() {
+		const currentAbonent = abonent();
+		if (!currentAbonent) return;
+
+		const referer = `?core_section=customer&action=show&id=${currentAbonent.id}`;
+
+		for (let i = 0; i < currentAbonent.equipment.length; i++) {
+			const eq = currentAbonent.equipment[i];
+			if (eq.type === "switch" && eq.deviceId && eq.port) {
+				try {
+					const data = await usersideClient.getIfaceData(eq.deviceId, referer);
+					const portData = data.data.find(p => p.ifNumber === eq.port);
+					if (portData) {
+						store.updateEquipmentPortData(i, {
+							portStatus: portData.ifOperStatus === 1 ? "up" : "down",
+							portSpeed: portData.ifHighSpeed,
+							inOctets: portData.ifHCInOctets,
+							outOctets: portData.ifHCOutOctets,
+							inErrors: portData.ifInErrors,
+							outErrors: portData.ifOutErrors,
+						});
+					}
+				} catch (err) {
+					console.error(`[PortPoll] Error polling device ${eq.deviceId}:`, err);
+				}
+			}
+		}
+	}
+
+	createEffect(() => {
+		const screen = store.currentScreen();
+		const hasAbonent = !!abonent();
+
+		if (screen === "abonent" && hasAbonent && !isActive) {
+			isActive = true;
+			startPolling();
+		} else if (screen !== "abonent" && isActive) {
+			isActive = false;
+			stopPolling();
+		}
+	});
+
+	onCleanup(() => {
+		stopPolling();
+		isActive = false;
+	});
 
   // Форматирование трафика в читаемые единицы
   function formatTraffic(octets: number): string {
@@ -94,7 +162,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 
   // Фон для скорости линка
   function getLinkSpeedBg(speed: number | undefined): string {
-    if (!speed) return "#222";
+    if (!speed) return "#440000";
     if (speed === 10) return "#442200";
     if (speed === 100) return "#006600";
     if (speed >= 1000) return "#008800";

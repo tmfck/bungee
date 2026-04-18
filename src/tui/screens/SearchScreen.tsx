@@ -133,40 +133,41 @@ const abonents: Abonent[] = usResults.map(r => ({
       try {
         const details = await userside.getAbonent(selected.id);
         
-const abonentDetails = {
-        id: details.id,
-        account: details.account,
-        fullName: details.fullName,
-        address: {
-          ...details.address,
-          full: details.address.apartment
-          ? `${details.address.full}, кв. ${details.address.apartment}`
-          : details.address.full,
-        },
-        phone: details.phone,
-        ip: details.ip,
-        tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
-        status: details.status,
-        contract: details.contract,
-        balance: details.balance,
-        activity: details.activity,
-        equipment: [
-          {
-            type: 'switch' as const,
-            model: details.connectionPoint.device,
-            mac: details.mac,
-            ip: details.connectionPoint.ip,
-            port: details.connectionPoint.port,
-            portStatus: undefined,
-            portSpeed: undefined,
-            ipMacList: [
-              { ip: details.ip, mac: details.mac },
-            ],
-          },
-        ],
-        connections: [],
-        services: [],
-      };
+		const abonentDetails = {
+				id: details.id,
+				account: details.account,
+				fullName: details.fullName,
+				address: {
+					...details.address,
+					full: details.address.apartment
+						? `${details.address.full}, кв. ${details.address.apartment}`
+						: details.address.full,
+				},
+				phone: details.phone,
+				ip: details.ip,
+				tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
+				status: details.status,
+				contract: details.contract,
+				balance: details.balance,
+				activity: details.activity,
+				equipment: details.connectionPoint.deviceId ? [
+					{
+						type: 'switch' as const,
+						model: details.connectionPoint.device,
+						mac: details.mac,
+						ip: details.connectionPoint.ip,
+						port: details.connectionPoint.port,
+						deviceId: details.connectionPoint.deviceId,
+						portStatus: undefined,
+						portSpeed: undefined,
+						ipMacList: [
+							{ ip: details.ip, mac: details.mac },
+						],
+					},
+				] : [],
+				connections: [],
+				services: [],
+			};
         
         store.setSelectedAbonent(abonentDetails);
       } catch (e) {

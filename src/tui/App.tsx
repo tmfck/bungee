@@ -1,7 +1,7 @@
 /**
- * Главный компонент приложения
- * Управляет рендерингом экранов и глобальными обработчиками
- */
+* Главный компонент приложения
+* Управляет рендерингом экранов и глобальными обработчиками
+*/
 
 import { Show, createMemo } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
@@ -13,6 +13,7 @@ import AbonentScreen from "./screens/AbonentScreen.tsx";
 import SwitchScreen from "./screens/SwitchScreen.tsx";
 import OLTScreen from "./screens/OLTScreen.tsx";
 import HelpModal from "./components/HelpModal.tsx";
+export { usersideClient } from "../index.js";
 
 interface AppProps {
   renderer: CliRenderer;
