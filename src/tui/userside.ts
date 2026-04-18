@@ -33,7 +33,6 @@ export interface UserSideAbonentDetails {
     full: string;
   };
   phone?: string;
-  email?: string;
   ip: string;
   mac: string;
   connectionPoint: {
@@ -214,9 +213,6 @@ function parseAbonentPage(html: string): UserSideAbonentDetails {
   const phoneMatch = html.match(/Мобильный телефон:[\s\S]*?<div>([^<]+)/);
   const phone = phoneMatch?.[1]?.trim() || undefined;
 
-  const emailMatch = html.match(/E-mail:[\s\S]*?<div>([^<]+)<\/div>/);
-  const email = (emailMatch?.[1]?.trim()) || undefined;
-
   const ipMatch = html.match(/IP\/MAC-адреса[\s\S]*?<div>\s*([\d.]+)/);
   const ip = ipMatch?.[1]?.trim() ?? '';
 
@@ -260,7 +256,6 @@ function parseAbonentPage(html: string): UserSideAbonentDetails {
       full: addressFull,
     },
     phone,
-    email,
     ip,
     mac,
     connectionPoint: {

@@ -12,6 +12,17 @@ interface AbonentScreenProps {
   store: Store;
 }
 
+function isWithinLastHour(timeStr: string): boolean {
+  if (!timeStr || timeStr === '-' || timeStr === '—') return false;
+  const match = timeStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return false;
+  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+  return diffHours <= 1;
+}
+
 export default function AbonentScreen(props: AbonentScreenProps) {
   const store = props.store;
   const abonent = () => store.selectedAbonent();
@@ -219,37 +230,50 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           <text fg="#888">Нет данных об абоненте</text>
         </box>
       }>
-      <box flexDirection="column" flexGrow={1} padding={1}>
-        {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
-        <box flexDirection="row" justifyContent="space-between">
-          {/* Левая колонка: ФИО и адрес */}
-          <box flexDirection="column">
-            <text fg="#fff" attributes={TextAttributes.BOLD}>
-              {abonent()!.fullName}
-            </text>
-            <text fg="#888">📍 {abonent()!.address.full}</text>
-            <text>📞 {abonent()!.phone || "-"}</text>
-          </box>
-
-          {/* Правая колонка: Статус, Тариф, Баланс */}
-          <box flexDirection="column" alignItems="flex-end">
-            <text
-              fg={abonent()!.status === "active" ? "#44ff44" : "#ff4444"}
-              attributes={TextAttributes.BOLD}
-            >
-              {abonent()!.status === "active" ? "● Активен" : 
-               abonent()!.status === "blocked" ? "○ Заблокирован" :
-               abonent()!.status === "suspended" ? "◐ Приостановлен" : "○ Отключён"}
-            </text>
-            <text fg="#888">{abonent()!.tariff}</text>
-            <text
-              fg={abonent()!.balance >= 0 ? "#44ff44" : "#ff4444"}
-              attributes={TextAttributes.BOLD}
-            >
-              {abonent()!.balance.toFixed(2)} ₽
-            </text>
-          </box>
+<box flexDirection="column" flexGrow={1} padding={1}>
+      {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
+      <box flexDirection="row" justifyContent="space-between">
+        {/* Левая колонка: ФИО, договор и адрес */}
+        <box flexDirection="column">
+<text fg="#fff" attributes={TextAttributes.BOLD}>
+						{abonent()!.fullName}{abonent()!.contract ? ` (${abonent()!.contract})` : ""}
+					</text>
+          <text fg="#888">📍 {abonent()!.address.full}</text>
+          <text>📞 {abonent()!.phone || "-"}</text>
         </box>
+
+        {/* Правая колонка: Статус, Тариф, Баланс */}
+        <box flexDirection="column" alignItems="flex-end">
+          <text
+            fg={abonent()!.status.toLowerCase().includes('активен') || abonent()!.status.toLowerCase().includes('актив') ? "#44ff44" : "#ff4444"}
+            attributes={TextAttributes.BOLD}
+          >
+            {abonent()!.status}
+          </text>
+          <text fg="#888">{abonent()!.tariff}</text>
+          <text
+            fg={abonent()!.balance >= 0 ? "#44ff44" : "#ff4444"}
+            attributes={TextAttributes.BOLD}
+          >
+            {abonent()!.balance.toFixed(2)} ₽
+          </text>
+        </box>
+      </box>
+
+      {/* Activity */}
+      <Show when={abonent()!.activity}>
+        <box flexDirection="row" marginTop={1} gap={2}>
+          <text fg="#888">Сеть:</text>
+          <text fg={isWithinLastHour(abonent()!.activity?.network || '') ? "#44ff44" : "#ff4444"}>
+            {abonent()!.activity?.network || "—"}
+          </text>
+          <text fg="#888">|</text>
+          <text fg="#888">Интернет:</text>
+          <text fg={isWithinLastHour(abonent()!.activity?.internet || '') ? "#44ff44" : "#ff4444"}>
+            {abonent()!.activity?.internet || "—"}
+          </text>
+        </box>
+      </Show>
 
       {/* Таблица IP-MAC */}
       <Show when={allIpMacEntries().length > 0}>

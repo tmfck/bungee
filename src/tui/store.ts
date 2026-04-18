@@ -18,8 +18,13 @@ export interface Abonent {
   phone?: string;
   ip?: string;
   tariff: string;
-  status: AbonentStatus;
+  status: string;
+  contract?: string;
   balance: number;
+  activity?: {
+    network: string;
+    internet: string;
+  };
 }
 
 export interface Address {
@@ -29,8 +34,6 @@ export interface Address {
   apartment?: string;
   full: string;
 }
-
-export type AbonentStatus = "active" | "blocked" | "suspended" | "disconnected";
 
 export interface AbonentDetails extends Abonent {
   equipment: Equipment[];

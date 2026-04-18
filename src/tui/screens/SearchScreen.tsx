@@ -74,20 +74,20 @@ export default function SearchScreen(props: SearchScreenProps) {
       
       try {
         const usResults = await userside.search(value);
-        const abonents: Abonent[] = usResults.map(r => ({
-          id: r.id,
-          account: r.account,
-          fullName: r.fullName,
-          address: {
-            city: "",
-            street: "",
-            house: "",
-            full: "",
-          },
-          tariff: "",
-          status: "active" as const,
-          balance: 0,
-        }));
+const abonents: Abonent[] = usResults.map(r => ({
+        id: r.id,
+        account: r.account,
+        fullName: r.fullName,
+        address: {
+          city: "",
+          street: "",
+          house: "",
+          full: "",
+        },
+        tariff: "",
+        status: "",
+        balance: 0,
+      }));
         store.setSearchResults(abonents);
         setSelectedIndex(0);
       } catch (e) {
@@ -133,38 +133,40 @@ export default function SearchScreen(props: SearchScreenProps) {
       try {
         const details = await userside.getAbonent(selected.id);
         
-        const abonentDetails = {
-          id: details.id,
-          account: details.account,
-          fullName: details.fullName,
-          address: {
-            ...details.address,
-            full: details.address.apartment 
-              ? `${details.address.full}, кв. ${details.address.apartment}`
-              : details.address.full,
+const abonentDetails = {
+        id: details.id,
+        account: details.account,
+        fullName: details.fullName,
+        address: {
+          ...details.address,
+          full: details.address.apartment
+          ? `${details.address.full}, кв. ${details.address.apartment}`
+          : details.address.full,
+        },
+        phone: details.phone,
+        ip: details.ip,
+        tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
+        status: details.status,
+        contract: details.contract,
+        balance: details.balance,
+        activity: details.activity,
+        equipment: [
+          {
+            type: 'switch' as const,
+            model: details.connectionPoint.device,
+            mac: details.mac,
+            ip: details.connectionPoint.ip,
+            port: details.connectionPoint.port,
+            portStatus: undefined,
+            portSpeed: undefined,
+            ipMacList: [
+              { ip: details.ip, mac: details.mac },
+            ],
           },
-          phone: details.phone,
-          ip: details.ip,
-          tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
-          status: details.status.toLowerCase().includes('стоп') ? 'blocked' as const : 'active' as const,
-          balance: details.balance,
-          equipment: [
-            {
-              type: 'switch' as const,
-              model: details.connectionPoint.device,
-              mac: details.mac,
-              ip: details.connectionPoint.ip,
-              port: details.connectionPoint.port,
-              portStatus: undefined,
-              portSpeed: undefined,
-              ipMacList: [
-                { ip: details.ip, mac: details.mac },
-              ],
-            },
-          ],
-          connections: [],
-          services: [],
-        };
+        ],
+        connections: [],
+        services: [],
+      };
         
         store.setSelectedAbonent(abonentDetails);
       } catch (e) {
