@@ -215,15 +215,15 @@ export default function AbonentScreen(props: AbonentScreenProps) {
             </Show>
           </Show>
 
-          {/* ONU информация */}
-          <Show when={eq.type === "onu"}>
-            <Show when={eq.ip}>
-              <text fg="#00d9ff">{eq.ip}</text>
-            </Show>
-            <Show when={eq.oltAddress}>
-              <text fg="#888">{eq.oltAddress}:{eq.oltPort}</text>
-            </Show>
-          </Show>
+      {/* ONU информация */}
+      <Show when={eq.type === "onu"}>
+        <Show when={eq.onuMac}>
+          <text fg="#aaa">{eq.onuMac}</text>
+        </Show>
+        <Show when={eq.oltAddress}>
+          <text fg="#ff8800">{eq.oltAddress}:{eq.oltPort}</text>
+        </Show>
+      </Show>
         </box>
 
         {/* Блок порта со статусом (только для switch) */}
@@ -298,35 +298,38 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           <text fg="#888">Нет данных об абоненте</text>
         </box>
       }>
-<box flexDirection="column" flexGrow={1} padding={1}>
-      {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
-      <box flexDirection="row" justifyContent="space-between">
-        {/* Левая колонка: ФИО, договор и адрес */}
-        <box flexDirection="column">
-<text fg="#fff" attributes={TextAttributes.BOLD}>
-						{abonent()!.fullName}{abonent()!.contract ? ` (${abonent()!.contract})` : ""}
-					</text>
-          <text fg="#888">📍 {abonent()!.address.full}</text>
-          <text>📞 {abonent()!.phone || "-"}</text>
-        </box>
+        <box flexDirection="column" flexGrow={1} padding={1} scrollable overflowY="scroll" position="relative">
+          {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
+          <box flexDirection="column" flexGrow={0} flexShrink={0}>
+            <box flexDirection="column" flexGrow={1} flexShrink={1}>
+              <text fg="#fff" attributes={TextAttributes.BOLD}>
+                {abonent()!.fullName}{abonent()!.contract ? ` (${abonent()!.contract})` : ""}
+              </text>
+              <text fg="#888">📍 {abonent()!.address.full}</text>
+              <text>📞 {abonent()!.phone || "-"}</text>
+            </box>
 
-        {/* Правая колонка: Статус, Тариф, Баланс */}
-        <box flexDirection="column" alignItems="flex-end">
-          <text
-            fg={abonent()!.status.toLowerCase().includes('активен') || abonent()!.status.toLowerCase().includes('актив') ? "#44ff44" : "#ff4444"}
-            attributes={TextAttributes.BOLD}
-          >
-            {abonent()!.status}
-          </text>
-          <text fg="#888">{abonent()!.tariff}</text>
-          <text
-            fg={abonent()!.balance >= 0 ? "#44ff44" : "#ff4444"}
-            attributes={TextAttributes.BOLD}
-          >
-            {abonent()!.balance.toFixed(2)} ₽
-          </text>
-        </box>
-      </box>
+            {/* Правая колонка: Статус, Тарифы, Баланс (абсолютное позиционирование справа) */}
+            <box flexDirection="column" alignItems="flex-end" position="absolute" right={0} top={0}>
+              <text
+                fg={abonent()!.status.toLowerCase().includes('активен') || abonent()!.status.toLowerCase().includes('актив') ? "#44ff44" : "#ff4444"}
+                attributes={TextAttributes.BOLD}
+              >
+                {abonent()!.status}
+              </text>
+              <For each={abonent()!.tariffs}>
+                {(tariff) => (
+                  <text fg="#888">{tariff.name} ({tariff.price} ₽)</text>
+                )}
+              </For>
+              <text
+                fg={abonent()!.balance >= 0 ? "#44ff44" : "#ff4444"}
+                attributes={TextAttributes.BOLD}
+              >
+                {abonent()!.balance.toFixed(2)} ₽
+              </text>
+            </box>
+          </box>
 
       {/* Activity */}
       <Show when={abonent()!.activity}>
@@ -343,30 +346,48 @@ export default function AbonentScreen(props: AbonentScreenProps) {
         </box>
       </Show>
 
-      {/* Таблица IP-MAC */}
-      <Show when={allIpMacEntries().length > 0}>
+      {/* Заметки */}
+      <Show when={abonent()!.notes}>
         <box flexDirection="column" marginTop={1}>
-          <For each={allIpMacEntries()}>
-              {(entry) => (
-                <box flexDirection="row" gap={2}>
-                  <text fg="#00d9ff">{entry.ip}</text>
-                  <text fg="#888">→</text>
-                  <text>{entry.mac || "—"}</text>
-                </box>
+          <text fg="#888" attributes={TextAttributes.BOLD}>Заметки:</text>
+          <box flexDirection="column" paddingLeft={1}>
+            <For each={abonent()!.notes!.split('\n').filter((l: string) => l.trim())}>
+              {(line: string) => (
+                <text fg="#aaa">{line.trim()}</text>
               )}
             </For>
           </box>
-        </Show>
-
-        {/* Оборудование */}
-        <box flexDirection="column" flexGrow={1} marginTop={1}>
-          <text fg="#fff" attributes={TextAttributes.BOLD}>Оборудование ({abonent()!.equipment.length})</text>
-          <text fg="#666">↑/↓ выбор | Enter диагностика</text>
-
-          <For each={abonent()!.equipment}>
-            {(eq, index) => renderEquipment(eq, index())}
-          </For>
         </box>
+      </Show>
+
+          {/* Таблица IP-MAC */}
+          <Show when={allIpMacEntries().length > 0}>
+            <box flexDirection="column" marginTop={1}>
+              <For each={allIpMacEntries()}>
+                {(entry) => (
+                  <box flexDirection="row" gap={2}>
+                    <text fg="#00d9ff">{entry.ip}</text>
+                    <text fg="#888">→</text>
+                    <text>{entry.mac || "—"}</text>
+                  </box>
+                )}
+              </For>
+            </box>
+          </Show>
+
+          {/* Оборудование */}
+          <box flexDirection="column" flexGrow={1} marginTop={1} justifyContent="flex-start">
+            <box flexDirection="row" justifyContent="space-between">
+              <text fg="#fff" attributes={TextAttributes.BOLD}>Оборудование ({abonent()!.equipment.length})</text>
+              <text fg="#666">↑/↓ выбор | Enter диагностика</text>
+            </box>
+
+            <box flexDirection="column" flexGrow={1} scrollable overflowY="scroll">
+              <For each={abonent()!.equipment}>
+                {(eq, index) => renderEquipment(eq, index())}
+              </For>
+            </box>
+          </box>
         </box>
       </Show>
     </Show>

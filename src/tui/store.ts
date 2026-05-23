@@ -35,10 +35,39 @@ export interface Address {
   full: string;
 }
 
+export interface TariffEntry {
+  name: string;
+  price: number;
+}
+
+export interface ConnectionPoint {
+  deviceId: string;
+  deviceModel: string;
+  deviceLocation: string;
+  ip: string;
+  port: number;
+  portName?: string;
+  portDescription?: string;
+}
+
 export interface AbonentDetails extends Abonent {
   equipment: Equipment[];
   connections: Connection[];
   services: Service[];
+  login?: string;
+  contract?: string;
+  credit?: number;
+  lastPlusDate?: string;
+  connectionDate?: string;
+  connectionTechnology?: string;
+  isLegalEntity?: boolean;
+  notes?: string;
+  manager?: string;
+  email?: string;
+  landlinePhone?: string;
+  tariffs: TariffEntry[];
+  additionalServices: string[];
+  connectionPoints: ConnectionPoint[];
 }
 
 export interface Equipment {
@@ -48,16 +77,22 @@ export interface Equipment {
 	ip?: string;
 	port?: number;
 	location?: string;
-	// Дополнительные поля для ONU
-	oltAddress?: string;
-	oltPort?: number;
+  // Дополнительные поля для ONU
+  oltAddress?: string;
+  oltPort?: string;
+  onuMac?: string;
 	// Список IP-MAC соответствий
 	ipMacList?: IpMacEntry[];
-	// Состояние порта (для switch)
-	portStatus?: "up" | "down";
-	portSpeed?: number;
-	// Заметка для порта
-	portNote?: string;
+  // Состояние порта (для switch)
+  portAdmin?: "on" | "off";
+  portSpeed?: number;
+  portStatus?: "up" | "down";
+  // Заметка для порта
+  portNote?: string;
+  // Описание порта
+  portDescription?: string;
+  // Имя порта (например 1/4)
+  portName?: string;
 	// Счётчики трафика
 	inOctets?: number;
 	outOctets?: number;
@@ -70,6 +105,7 @@ export interface Equipment {
 export interface IpMacEntry {
   ip: string;
   mac: string | null;
+  lastSeen?: string;
 }
 
 export type EquipmentType = "switch" | "olt" | "onu" | "router";
@@ -221,15 +257,18 @@ export function createStore() {
 		setSelectedEquipmentIndex(0);
 	}
 
-	function selectAbonentFromSearch(abonent: Abonent) {
-		const details: AbonentDetails = {
-			...abonent,
-			equipment: [],
-			connections: [],
-			services: [],
-		};
-		setFullSelectedAbonent(details);
-	}
+  function selectAbonentFromSearch(abonent: Abonent) {
+    const details: AbonentDetails = {
+      ...abonent,
+      equipment: [],
+      connections: [],
+      services: [],
+      tariffs: [],
+      additionalServices: [],
+      connectionPoints: [],
+    };
+    setFullSelectedAbonent(details);
+  }
 
 	// === Методы диагностики Switch ===
 	function clearSwitchData() {
@@ -248,14 +287,15 @@ export function createStore() {
 	// === Методы обновления портов ===
 	function updateEquipmentPortData(
 		equipmentIndex: number,
-		data: {
-			portStatus?: "up" | "down";
-			portSpeed?: number;
-			inOctets?: number;
-			outOctets?: number;
-			inErrors?: number;
-			outErrors?: number;
-		}
+  data: {
+    portAdmin?: "on" | "off";
+    portStatus?: "up" | "down";
+    portSpeed?: number;
+    inOctets?: number;
+    outOctets?: number;
+    inErrors?: number;
+    outErrors?: number;
+  }
 	) {
 		const current = selectedAbonent();
 		if (!current) return;

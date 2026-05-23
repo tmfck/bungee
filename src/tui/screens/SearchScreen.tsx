@@ -6,7 +6,7 @@
 import { createSignal, createMemo, Show, For, onCleanup, onMount } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import type { Store, Abonent } from "../store.js";
-import { createUserSideClient, type UserSideConfig } from "../userside.js";
+import { createUserSideClient, type UserSideConfig, parseNotesToOltInfo } from "../userside.js";
 
 interface SearchScreenProps {
   store: Store;
@@ -133,41 +133,61 @@ const abonents: Abonent[] = usResults.map(r => ({
       try {
         const details = await userside.getAbonent(selected.id);
         
-		const abonentDetails = {
-				id: details.id,
-				account: details.account,
-				fullName: details.fullName,
-				address: {
-					...details.address,
-					full: details.address.apartment
-						? `${details.address.full}, кв. ${details.address.apartment}`
-						: details.address.full,
-				},
-				phone: details.phone,
-				ip: details.ip,
-				tariff: `${details.tariff.name} (${details.tariff.price} ₽)`,
-				status: details.status,
-				contract: details.contract,
-				balance: details.balance,
-				activity: details.activity,
-				equipment: details.connectionPoint.deviceId ? [
-					{
-						type: 'switch' as const,
-						model: details.connectionPoint.device,
-						mac: details.mac,
-						ip: details.connectionPoint.ip,
-						port: details.connectionPoint.port,
-						deviceId: details.connectionPoint.deviceId,
-						portStatus: undefined,
-						portSpeed: undefined,
-						ipMacList: [
-							{ ip: details.ip, mac: details.mac },
-						],
-					},
-				] : [],
-				connections: [],
-				services: [],
-			};
+          const oltInfo = parseNotesToOltInfo(details.notes || '');
+
+          const abonentDetails = {
+            id: details.id,
+            account: details.account,
+            fullName: details.fullName,
+            address: {
+              ...details.address,
+              full: details.address.apartment
+              ? `${details.address.full}, кв. ${details.address.apartment}`
+              : details.address.full,
+            },
+            phone: details.phone,
+            ip: details.ip,
+            tariff: details.tariffs.length > 0
+              ? `${details.tariffs[0]!.name} (${details.tariffs[0]!.price} ₽)`
+              : '',
+            status: details.status,
+            contract: details.contract,
+            balance: details.balance,
+            activity: details.activity,
+            login: details.login,
+            credit: details.credit || undefined,
+            lastPlusDate: details.lastPlusDate || undefined,
+            connectionDate: details.connectionDate || undefined,
+            connectionTechnology: details.connectionTechnology || undefined,
+            isLegalEntity: details.isLegalEntity || undefined,
+            notes: details.notes || undefined,
+            manager: details.manager || undefined,
+            email: details.email || undefined,
+            landlinePhone: details.landlinePhone || undefined,
+            tariffs: details.tariffs,
+            additionalServices: details.additionalServices,
+            connectionPoints: details.connectionPoints,
+            equipment: details.connectionPoints.map(cp => {
+              const eqType = cp.equipmentType || 'switch' as const;
+              return {
+                type: eqType,
+                model: cp.onuModel || cp.deviceModel,
+                mac: '',
+                ip: cp.ip || '',
+                port: cp.port,
+                portName: cp.portName,
+                portDescription: cp.portDescription,
+                deviceId: cp.deviceId,
+                location: cp.onuName || cp.deviceLocation || '',
+                oltAddress: oltInfo?.oltIp || undefined,
+                oltPort: oltInfo?.oltPort || undefined,
+                onuMac: oltInfo?.onuMac || undefined,
+                ipMacList: details.ipMacList.length > 0 ? [...details.ipMacList] : [],
+              };
+            }),
+            connections: [],
+            services: [],
+          };
         
         store.setSelectedAbonent(abonentDetails);
       } catch (e) {
