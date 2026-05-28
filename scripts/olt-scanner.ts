@@ -7,14 +7,6 @@ interface OltAddress {
   port: number;
 }
 
-interface PortReport {
-  ip: string;
-  oltPort: string;
-  subscribers: number;
-  wireDown: number;
-  dynamicOnu: number;
-}
-
 interface TelnetConfig {
   username: string;
   password: string;
@@ -90,60 +82,134 @@ function parsePortStats(output: string): { port: string; subscribers: number; wi
   return portStats;
 }
 
+async function waitForPattern(socket: Socket, pattern: string | RegExp, timeoutMs: number = 10000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let resolved = false;
+
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true;
+        socket.off('data', onData);
+        reject(new Error(`Timeout waiting for pattern: ${pattern}`));
+      }
+    };
+
+    const timeout = setTimeout(cleanup, timeoutMs);
+
+    const onData = (data: Buffer) => {
+      buffer += data.toString();
+      
+      const matches = typeof pattern === 'string' 
+        ? buffer.includes(pattern) 
+        : pattern.test(buffer);
+      
+      if (matches) {
+        resolved = true;
+        clearTimeout(timeout);
+        socket.off('data', onData);
+        resolve(buffer);
+      }
+    };
+
+    socket.on('data', onData);
+  });
+}
+
+async function collectUntilEnd(socket: Socket, endMarker: RegExp, debugIp?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let hasMore = false;
+    let isResolved = false;
+    
+    const checkComplete = () => {
+      const lines = buffer.split('\n');
+      const lastLine = lines[lines.length - 1];
+      
+      if (lastLine && endMarker.test(lastLine) && !hasMore) {
+        cleanup();
+        resolve(buffer);
+        return true;
+      }
+      return false;
+    };
+
+    const cleanup = () => {
+      if (!isResolved) {
+        isResolved = true;
+        socket.off('data', onData);
+        socket.off('end', onEnd);
+        socket.off('close', onClose);
+        socket.off('error', onError);
+      }
+    };
+
+    const onData = (data: Buffer) => {
+      const chunk = data.toString();
+      buffer += chunk;
+
+      if (chunk.includes('--More--')) {
+        hasMore = true;
+        socket.write(' ');
+      } else if (hasMore) {
+        hasMore = false;
+      }
+
+      if (checkComplete()) return;
+    };
+
+    const onEnd = () => {
+      cleanup();
+      resolve(buffer);
+    };
+
+    const onClose = () => {
+      cleanup();
+      resolve(buffer);
+    };
+
+    const onError = (err: Error) => {
+      cleanup();
+      reject(err);
+    };
+
+    socket.on('data', onData);
+    socket.on('end', onEnd);
+    socket.on('close', onClose);
+    socket.on('error', onError);
+  });
+}
+
 async function processOltWithSocket(ip: string, config: TelnetConfig): Promise<void> {
   const socket = await connectTelnet(ip, 23, config);
 
   let fullBuffer = '';
-  const dataHandler = (data: Buffer) => {
-    fullBuffer += data.toString();
+  
+    const dataHandler = (data: Buffer) => {
+    const chunk = data.toString();
+    fullBuffer += chunk;
   };
   socket.on('data', dataHandler);
 
   try {
     socket.write(`${config.username}\r\n`);
-    await Bun.sleep(1000);
-
-    if (!fullBuffer.includes('Password:')) {
-      throw new Error('Did not receive Password prompt');
-    }
+    fullBuffer = await waitForPattern(socket, 'Password:', 5000);
 
     socket.write(`${config.password}\r\n`);
-    await Bun.sleep(1000);
+    fullBuffer = await waitForPattern(socket, /[>#]/, 5000);
 
     if (fullBuffer.includes('>')) {
       socket.write('enable\r\n');
-      await Bun.sleep(1000);
-    }
-
-    if (!fullBuffer.includes('#')) {
-      throw new Error('Not in enable mode');
-    }
-
-    socket.write('terminal length 0\r\n');
-    await Bun.sleep(500);
-
-    fullBuffer = '';
-    socket.write('show epon onu-information\r\n');
-    await Bun.sleep(1000);
-
-    let lastLength = 0;
-    let stableCount = 0;
-
-    while (stableCount < 3) {
-      await Bun.sleep(1000);
-
-      if (fullBuffer.includes('--More--')) {
-        socket.write(' ');
-        stableCount = 0;
-      } else if (fullBuffer.length === lastLength) {
-        stableCount++;
-      } else {
-        stableCount = 0;
-        lastLength = fullBuffer.length;
-      }
+      fullBuffer = await waitForPattern(socket, '#', 5000);
     }
 
     socket.off('data', dataHandler);
+
+    fullBuffer = '';
+    socket.write('show epon onu-information\r\n');
+
+    const commandOutput = await collectUntilEnd(socket, /^[^\n]*#/m);
+    fullBuffer = commandOutput;
 
     const portStats = parsePortStats(fullBuffer);
 
@@ -163,6 +229,7 @@ async function processOltWithSocket(ip: string, config: TelnetConfig): Promise<v
 }
 
 async function main() {
+  const startTime = performance.now();
   const args = Bun.argv.slice(2);
   let addresses: OltAddress[];
 
@@ -191,8 +258,10 @@ async function main() {
     }
   }
 
+  const endTime = performance.now();
+  const elapsedTime = (endTime - startTime) / 1000;
   console.log('-'.repeat(70));
-  console.log('Done');
+  console.log(`Done in ${elapsedTime.toFixed(2)}s`);
 }
 
-main();
+main().catch(console.error);
