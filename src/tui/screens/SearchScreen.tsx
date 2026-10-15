@@ -19,21 +19,22 @@ export default function SearchScreen(props: SearchScreenProps) {
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [searchTimeout, setSearchTimeout] = createSignal<Timer | null>(null);
   let searchRequestId = 0;
+  let lastHandledValue = "";
 
   let inputRef: any = null;
 
-  // Фокус в поле ввода, пока активен экран поиска и закрыта справка
-  createEffect(() => {
-    const screen = store.currentScreen();
-    const helpVisible = store.isHelpVisible();
+  function syncInputFocus() {
     if (!inputRef) return;
-
-    if (screen === "search" && !helpVisible) {
+    const shouldFocus = store.currentScreen() === "search" && !store.isHelpVisible();
+    if (shouldFocus) {
       inputRef.focus();
     } else {
       inputRef.blur();
     }
-  });
+  }
+
+  // Фокус в поле ввода, пока активен экран поиска и закрыта справка
+  createEffect(syncInputFocus);
 
   // Cleanup: гасим таймер дебаунса и инвалидируем незавершённые запросы
   onCleanup(() => {
@@ -63,6 +64,10 @@ export default function SearchScreen(props: SearchScreenProps) {
   });
 
   async function handleSearch(value: string) {
+    // Эхо от применения value-пропа к input: повторно не обрабатываем
+    if (value === lastHandledValue) return;
+    lastHandledValue = value;
+
     store.setSearchInputValue(value);
 
     const prevTimeout = searchTimeout();
@@ -225,7 +230,10 @@ export default function SearchScreen(props: SearchScreenProps) {
           titleAlignment="left"
         >
         <input
-          ref={inputRef}
+          ref={(el: any) => {
+            inputRef = el;
+            syncInputFocus();
+          }}
           placeholder="Поиск..."
           value={store.searchInputValue()}
           onInput={(value: string) => handleSearch(value)}
@@ -268,8 +276,8 @@ export default function SearchScreen(props: SearchScreenProps) {
                 selectAbonent(index());
               }}
             >
-              <text width={10}>{abonent.account}</text>
-              <text>{abonent.fullName}</text>
+              <text width={10} selectable={false}>{abonent.account}</text>
+              <text selectable={false}>{abonent.fullName}</text>
             </box>
           )}
         </For>

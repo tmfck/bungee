@@ -112,6 +112,9 @@ export default function App() {
       flexDirection="column"
       width="100%"
       height="100%"
+      onMouseDown={() => {
+        if (store.isHelpVisible()) store.hideHelp();
+      }}
     >
       {/* Header */}
       <box
@@ -123,9 +126,9 @@ export default function App() {
       >
         <text fg="#00d9ff" attributes={TextAttributes.BOLD}>{screenTitle()}</text>
         <box flexDirection="row" gap={2}>
-          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.toggleHelp(); }}>F1 - Справка</text>
-          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.navigateTo("search"); }}>F3 - Поиск</text>
-          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) void exitApp(); }}>F10 - Выход</text>
+          <text fg="#888" selectable={false} onMouseDown={() => { if (!store.isHelpVisible()) store.toggleHelp(); }}>F1 - Справка</text>
+          <text fg="#888" selectable={false} onMouseDown={() => { if (!store.isHelpVisible()) store.navigateTo("search"); }}>F3 - Поиск</text>
+          <text fg="#888" selectable={false} onMouseDown={() => { if (!store.isHelpVisible()) void exitApp(); }}>F10 - Выход</text>
         </box>
       </box>
 
@@ -146,6 +149,7 @@ export default function App() {
           <Show when={store.screenHistory().length > 0}>
             <text
               fg="#888"
+              selectable={false}
               onMouseDown={() => { if (!store.isHelpVisible()) store.goBack(); }}
             >
               ← Назад
