@@ -205,6 +205,7 @@ export function createStore() {
 		selectedAbonent,
 		abonentLoading,
 		portPollError,
+		isHelpVisible,
 
 		// Setters
 		setSearchInputValue,
