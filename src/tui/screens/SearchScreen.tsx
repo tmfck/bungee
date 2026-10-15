@@ -52,7 +52,6 @@ export default function SearchScreen(props: SearchScreenProps) {
   });
 
   async function handleSearch(value: string) {
-    store.setSearchQuery(value);
     store.setSearchInputValue(value);
 
     const prevTimeout = searchTimeout();
@@ -191,10 +190,7 @@ export default function SearchScreen(props: SearchScreenProps) {
                 ipMacList: details.ipMacList.length > 0 ? [...details.ipMacList] : [],
               };
             }),
-            connections: [],
-            services: [],
           };
-        
         store.setSelectedAbonent(abonentDetails);
       } catch (e) {
         console.error('[SearchScreen] Failed to load abonent:', e);
@@ -219,7 +215,7 @@ export default function SearchScreen(props: SearchScreenProps) {
       {/* Input */}
       <box flexDirection="column" marginBottom={1}>
         <box
-          borderColor={store.focusedElement() === "searchInput" ? "#00d9ff" : "#444"}
+          borderColor="#00d9ff"
           borderStyle="single"
           paddingX={1}
           paddingY={0}

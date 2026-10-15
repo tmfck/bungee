@@ -5,10 +5,13 @@
  */
 
 import { createSignal, createRoot } from "solid-js";
+import type { IpMacEntry, TariffEntry } from "./userside.js";
+
+export type { IpMacEntry, TariffEntry };
 
 // === Типы ===
 
-export type ScreenId = "search" | "abonent" | "switch" | "olt" | "help";
+export type ScreenId = "search" | "abonent" | "switch" | "olt";
 
 export interface Abonent {
   id: string;
@@ -35,11 +38,6 @@ export interface Address {
   full: string;
 }
 
-export interface TariffEntry {
-  name: string;
-  price: number;
-}
-
 export interface ConnectionPoint {
   deviceId: string;
   deviceModel: string;
@@ -52,8 +50,6 @@ export interface ConnectionPoint {
 
 export interface AbonentDetails extends Abonent {
   equipment: Equipment[];
-  connections: Connection[];
-  services: Service[];
   login?: string;
   contract?: string;
   credit?: number;
@@ -102,89 +98,7 @@ export interface Equipment {
 	deviceId?: string;
 }
 
-export interface IpMacEntry {
-  ip: string;
-  mac: string | null;
-  lastSeen?: string;
-}
-
 export type EquipmentType = "switch" | "olt" | "onu" | "router";
-
-export interface Connection {
-  id: string;
-  type: string;
-  status: string;
-}
-
-export interface Service {
-  id: string;
-  name: string;
-  status: string;
-}
-
-export interface PortStatus {
-  port: number;
-  status: "up" | "down";
-  speed: number;
-  duplex: "full" | "half";
-  flowControl: boolean;
-}
-
-export interface PortErrors {
-  port: number;
-  crcErrors: number;
-  collisions: number;
-  fcsErrors: number;
-  overflow: number;
-  total: number;
-}
-
-export interface PortTraffic {
-  port: number;
-  inOctets: number;
-  outOctets: number;
-  inUcastPkts: number;
-  outUcastPkts: number;
-  inErrors: number;
-  outErrors: number;
-}
-
-export interface MacEntry {
-  mac: string;
-  vlan: number;
-  port: number;
-  type: "dynamic" | "static";
-}
-
-export interface ONUInfo {
-  onuId: string;
-  mac: string;
-  port: number;
-  status: ONUStatus;
-}
-
-export type ONUStatus =
-  | "registered"
-  | "llid-admin-down"
-  | "wire-down"
-  | "offline"
-  | "power-off"
-  | "unknown";
-
-export interface ONUDetails extends ONUInfo {
-  vendor: string;
-  model: string;
-  firmware: string;
-  uptime: number;
-  signal: ONUSignal;
-}
-
-export interface ONUSignal {
-  rxPower: number;
-  txPower: number;
-  distance: number;
-  attenuation: number;
-}
 
 // === Store ===
 
@@ -195,7 +109,6 @@ export function createStore() {
     const [screenHistory, setScreenHistory] = createSignal<ScreenId[]>([]);
 
     // === Состояние поиска ===
-    const [searchQuery, setSearchQuery] = createSignal("");
     const [searchInputValue, setSearchInputValue] = createSignal("");
     const [searchResults, setSearchResults] = createSignal<Abonent[]>([]);
     const [searchLoading, setSearchLoading] = createSignal(false);
@@ -204,25 +117,13 @@ export function createStore() {
     // === Состояние абонента ===
     const [selectedAbonent, setSelectedAbonent] = createSignal<AbonentDetails | null>(null);
     const [abonentLoading, setAbonentLoading] = createSignal(false);
-    const [selectedEquipmentIndex, setSelectedEquipmentIndex] = createSignal(0);
-
-    // === Состояние диагностики Switch ===
-    const [switchData, setSwitchData] = createSignal<PortStatus | null>(null);
-    const [switchErrors, setSwitchErrors] = createSignal<PortErrors | null>(null);
-    const [switchTraffic, setSwitchTraffic] = createSignal<PortTraffic | null>(null);
-    const [switchLoading, setSwitchLoading] = createSignal(false);
-
-    // === Состояние диагностики OLT ===
-    const [oltData, setOltData] = createSignal<ONUDetails | null>(null);
-    const [oltLoading, setOltLoading] = createSignal(false);
 
     // === UI состояние ===
     const [isHelpVisible, setIsHelpVisible] = createSignal(false);
-    const [focusedElement, setFocusedElement] = createSignal<string | null>("searchInput");
-    const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
 
     // === Методы навигации ===
     function navigateTo(screen: ScreenId) {
+      if (currentScreen() === screen) return;
       setScreenHistory((prev) => [...prev, currentScreen()]);
       setCurrentScreen(screen);
     }
@@ -254,48 +155,20 @@ export function createStore() {
 	function setFullSelectedAbonent(abonent: AbonentDetails) {
 		setSelectedAbonent(abonent);
 		setAbonentLoading(false);
-		setSelectedEquipmentIndex(0);
-	}
-
-  function selectAbonentFromSearch(abonent: Abonent) {
-    const details: AbonentDetails = {
-      ...abonent,
-      equipment: [],
-      connections: [],
-      services: [],
-      tariffs: [],
-      additionalServices: [],
-      connectionPoints: [],
-    };
-    setFullSelectedAbonent(details);
-  }
-
-	// === Методы диагностики Switch ===
-	function clearSwitchData() {
-		setSwitchData(null);
-		setSwitchErrors(null);
-		setSwitchTraffic(null);
-		setSwitchLoading(false);
-	}
-
-	// === Методы диагностики OLT ===
-	function clearOltData() {
-		setOltData(null);
-		setOltLoading(false);
 	}
 
 	// === Методы обновления портов ===
 	function updateEquipmentPortData(
 		equipmentIndex: number,
-  data: {
-    portAdmin?: "on" | "off";
-    portStatus?: "up" | "down";
-    portSpeed?: number;
-    inOctets?: number;
-    outOctets?: number;
-    inErrors?: number;
-    outErrors?: number;
-  }
+    data: {
+      portAdmin?: "on" | "off";
+      portStatus?: "up" | "down";
+      portSpeed?: number;
+      inOctets?: number;
+      outOctets?: number;
+      inErrors?: number;
+      outErrors?: number;
+    }
 	) {
 		const current = selectedAbonent();
 		if (!current) return;
@@ -315,10 +188,6 @@ export function createStore() {
 		setIsHelpVisible((prev) => !prev);
 	}
 
-	function showHelp() {
-		setIsHelpVisible(true);
-	}
-
 	function hideHelp() {
 		setIsHelpVisible(false);
 	}
@@ -327,53 +196,28 @@ export function createStore() {
 		// Signals (read-only)
 		currentScreen,
 		screenHistory,
-		searchQuery,
 		searchInputValue,
 		searchResults,
 		searchLoading,
 		searchError,
 		selectedAbonent,
 		abonentLoading,
-		selectedEquipmentIndex,
-		switchData,
-		switchErrors,
-		switchTraffic,
-		switchLoading,
-		oltData,
-		oltLoading,
 		isHelpVisible,
-		focusedElement,
-		statusMessage,
 
 		// Setters
-		setCurrentScreen,
-		setSearchQuery,
 		setSearchInputValue,
 		setSearchResults: setFullSearchResults,
 		setSearchLoading,
 		setSearchError,
 		setSelectedAbonent: setFullSelectedAbonent,
-		selectAbonentFromSearch,
 		setAbonentLoading,
-		setSelectedEquipmentIndex,
-		setSwitchData,
-		setSwitchErrors,
-		setSwitchTraffic,
-		setSwitchLoading,
-		setOltData,
-		setOltLoading,
-		setFocusedElement,
-		setStatusMessage,
 		updateEquipmentPortData,
 
 		// Methods
 		navigateTo,
 		goBack,
 		clearSearchResults,
-		clearSwitchData,
-		clearOltData,
 		toggleHelp,
-		showHelp,
 		hideHelp,
 	};
 });
