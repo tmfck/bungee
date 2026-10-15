@@ -17,6 +17,7 @@ export default function SearchScreen(props: SearchScreenProps) {
 
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [searchTimeout, setSearchTimeout] = createSignal<Timer | null>(null);
+  let searchRequestId = 0;
 
   let inputRef: any = null;
 
@@ -62,38 +63,47 @@ export default function SearchScreen(props: SearchScreenProps) {
     const prevTimeout = searchTimeout();
     if (prevTimeout) {
       clearTimeout(prevTimeout);
+      setSearchTimeout(null);
     }
 
     if (value.length < 2) {
+      searchRequestId++;
       store.clearSearchResults();
       return;
     }
 
+    const requestId = ++searchRequestId;
+    const isStale = () => requestId !== searchRequestId;
+
     const timeout = setTimeout(async () => {
       store.setSearchLoading(true);
-      
+
       try {
         const usResults = await userside.search(value);
-const abonents: Abonent[] = usResults.map(r => ({
-        id: r.id,
-        account: r.account,
-        fullName: r.fullName,
-        address: {
-          city: "",
-          street: "",
-          house: "",
-          full: "",
-        },
-        tariff: "",
-        status: "",
-        balance: 0,
-      }));
+        if (isStale()) return;
+        const abonents: Abonent[] = usResults.map(r => ({
+          id: r.id,
+          account: r.account,
+          fullName: r.fullName,
+          address: {
+            city: "",
+            street: "",
+            house: "",
+            full: "",
+          },
+          tariff: "",
+          status: "",
+          balance: 0,
+        }));
         store.setSearchResults(abonents);
         setSelectedIndex(0);
       } catch (e) {
+        if (isStale()) return;
         store.setSearchError(e instanceof Error ? e.message : "Ошибка поиска");
       } finally {
-        store.setSearchLoading(false);
+        if (!isStale()) {
+          store.setSearchLoading(false);
+        }
       }
     }, 300);
 
@@ -193,6 +203,7 @@ const abonents: Abonent[] = usResults.map(r => ({
       } catch (e) {
         console.error('[SearchScreen] Failed to load abonent:', e);
         store.setAbonentLoading(false);
+        store.setSearchError(e instanceof Error ? e.message : "Не удалось загрузить карточку абонента");
         store.goBack();
       }
     }
@@ -204,6 +215,7 @@ const abonents: Abonent[] = usResults.map(r => ({
     if (timeout) {
       clearTimeout(timeout);
     }
+    searchRequestId++;
   });
 
   return (

@@ -29,6 +29,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 	const abonent = () => store.selectedAbonent();
 	const [selectedEquipment, setSelectedEquipment] = createSignal(0);
 	let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+	let isPolling = false;
 	let isActive = false;
 
 	function startPolling() {
@@ -83,31 +84,39 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 	});
 
 	async function pollPortStatus() {
+		if (isPolling) return;
+
 		const currentAbonent = abonent();
 		if (!currentAbonent) return;
 
-		const referer = `?core_section=customer&action=show&id=${currentAbonent.id}`;
+		isPolling = true;
 
-		for (let i = 0; i < currentAbonent.equipment.length; i++) {
-          const eq = currentAbonent.equipment[i]!;
-			if (eq.type === "switch" && eq.deviceId && eq.port) {
-				try {
-					const data = await usersideClient.getIfaceData(eq.deviceId, referer);
-					const portData = data.data.find(p => p.ifNumber === eq.port);
-					if (portData) {
-						store.updateEquipmentPortData(i, {
-							portStatus: portData.ifOperStatus === 1 ? "up" : "down",
-							portSpeed: portData.ifHighSpeed,
-							inOctets: portData.ifHCInOctets,
-							outOctets: portData.ifHCOutOctets,
-							inErrors: portData.ifInErrors,
-							outErrors: portData.ifOutErrors,
-						});
+		try {
+			const referer = `?core_section=customer&action=show&id=${currentAbonent.id}`;
+
+			for (let i = 0; i < currentAbonent.equipment.length; i++) {
+				const eq = currentAbonent.equipment[i]!;
+				if (eq.type === "switch" && eq.deviceId && eq.port) {
+					try {
+						const data = await usersideClient.getIfaceData(eq.deviceId, referer);
+						const portData = data.data.find(p => p.ifNumber === eq.port);
+						if (portData) {
+							store.updateEquipmentPortData(i, {
+								portStatus: portData.ifOperStatus === 1 ? "up" : "down",
+								portSpeed: portData.ifHighSpeed ?? (portData.ifSpeed > 0 ? Math.round(portData.ifSpeed / 1_000_000) : undefined),
+								inOctets: portData.ifHCInOctets,
+								outOctets: portData.ifHCOutOctets,
+								inErrors: portData.ifInErrors,
+								outErrors: portData.ifOutErrors,
+							});
+						}
+					} catch (err) {
+						console.error(`[PortPoll] Error polling device ${eq.deviceId}:`, err);
 					}
-				} catch (err) {
-					console.error(`[PortPoll] Error polling device ${eq.deviceId}:`, err);
 				}
 			}
+		} finally {
+			isPolling = false;
 		}
 	}
 
