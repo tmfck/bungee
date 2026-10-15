@@ -309,9 +309,9 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           <text fg="#888">Нет данных об абоненте</text>
         </box>
       }>
-        <scrollbox flexDirection="column" flexGrow={1} padding={1} scrollY position="relative">
+        <scrollbox flexDirection="column" flexGrow={1} padding={1} scrollY>
           {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
-          <box flexDirection="column" flexGrow={0} flexShrink={0}>
+          <box flexDirection="row" flexGrow={0} flexShrink={0}>
             <box flexDirection="column" flexGrow={1} flexShrink={1}>
               <text fg="#fff" attributes={TextAttributes.BOLD}>
                 {abonent()!.fullName}{abonent()!.contract ? ` (${abonent()!.contract})` : ""}
@@ -320,8 +320,8 @@ export default function AbonentScreen(props: AbonentScreenProps) {
               <text>📞 {abonent()!.phone || "-"}</text>
             </box>
 
-            {/* Правая колонка: Статус, Тарифы, Баланс (абсолютное позиционирование справа) */}
-            <box flexDirection="column" alignItems="flex-end" position="absolute" right={0} top={0}>
+            {/* Правая колонка: Статус, Тарифы, Баланс */}
+            <box flexDirection="column" alignItems="flex-end" flexShrink={0}>
               <text
                 fg={abonent()!.status.toLowerCase().includes('активен') || abonent()!.status.toLowerCase().includes('актив') ? "#44ff44" : "#ff4444"}
                 attributes={TextAttributes.BOLD}
@@ -387,7 +387,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           </Show>
 
           {/* Оборудование */}
-          <box flexDirection="column" flexGrow={1} marginTop={1} justifyContent="flex-start">
+          <box flexDirection="column" marginTop={1}>
             <box flexDirection="row" justifyContent="space-between">
               <text fg="#fff" attributes={TextAttributes.BOLD}>Оборудование ({abonent()!.equipment.length})</text>
               <text fg="#666">↑/↓ выбор | Enter диагностика</text>
@@ -397,11 +397,9 @@ export default function AbonentScreen(props: AbonentScreenProps) {
               <text fg="#ff4444">⚠ Опрос портов: {store.portPollError()}</text>
             </Show>
 
-            <scrollbox flexDirection="column" flexGrow={1} scrollY>
-              <For each={abonent()!.equipment}>
-                {(eq, index) => renderEquipment(eq, index())}
-              </For>
-            </scrollbox>
+            <For each={abonent()!.equipment}>
+              {(eq, index) => renderEquipment(eq, index())}
+            </For>
           </box>
         </scrollbox>
       </Show>
