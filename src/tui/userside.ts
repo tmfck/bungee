@@ -9,6 +9,14 @@ export interface UserSideConfig {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
+const DEBUG = Boolean(process.env.BUNGEE_DEBUG);
+
+function debug(...args: unknown[]): void {
+	if (DEBUG) {
+		console.log(...args);
+	}
+}
+
 export interface UserSideSearchResult {
   id: string;
   account: string;
@@ -123,8 +131,8 @@ export function createUserSideClient(config: UserSideConfig) {
   async function search(query: string): Promise<UserSideSearchResult[]> {
 		const url = `${config.baseUrl}/oper/?core_section=customer_list&action=ajax_search&search=${encodeURIComponent(query)}`;
 
-		console.log(`[UserSide] Searching for: ${query}`);
-		console.log(`[UserSide] URL: ${url}`);
+		debug(`[UserSide] Searching for: ${query}`);
+		debug(`[UserSide] URL: ${url}`);
 
 		const response = await fetch(url, {
 			headers: {
@@ -147,8 +155,8 @@ export function createUserSideClient(config: UserSideConfig) {
 	async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
 		const url = `${config.baseUrl}/oper/?core_section=customer&action=show&id=${id}`;
 
-		console.log(`[UserSide] Fetching abonent: ${id}`);
-		console.log(`[UserSide] URL: ${url}`);
+		debug(`[UserSide] Fetching abonent: ${id}`);
+		debug(`[UserSide] URL: ${url}`);
 
 		const response = await fetch(url, {
 			headers: {
@@ -163,7 +171,7 @@ export function createUserSideClient(config: UserSideConfig) {
 		}
 
 		const html = await response.text();
-		console.log(`[UserSide] Response length: ${html.length}`);
+		debug(`[UserSide] Response length: ${html.length}`);
 
 		const abonent = parseAbonentPage(html);
 
@@ -177,7 +185,7 @@ export function createUserSideClient(config: UserSideConfig) {
 	async function getIfaceData(deviceId: string, referer?: string): Promise<IfaceJsonResponse> {
 		const url = `${config.baseUrl}/oper/?core_section=device&action=iface_json_data&id=${deviceId}`;
 
-		console.log(`[UserSide] Fetching iface data for device: ${deviceId}`);
+		debug(`[UserSide] Fetching iface data for device: ${deviceId}`);
 
 		const headers: Record<string, string> = {
 			'Cookie': config.cookie,
@@ -210,7 +218,7 @@ export function createUserSideClient(config: UserSideConfig) {
 			throw new Error('В ответе iface_json_data отсутствуют данные портов');
 		}
 
-		console.log(`[UserSide] Iface data: ${data.data.length} ports`);
+		debug(`[UserSide] Iface data: ${data.data.length} ports`);
 		return data;
 	}
 
@@ -237,7 +245,7 @@ export function parseSearchResponse(text: string): UserSideSearchResult[] {
       .replace(/\\\\\\/g, '\\')
       .replace(/\\"/g, '"');
 
-  console.log(`[UserSide Parser] Decoded data preview: ${decodedData.substring(0, 300)}`);
+  debug(`[UserSide Parser] Decoded data length: ${decodedData.length}`);
 
   const linkRegex = /<a href="\?core_section=customer&action=show&id=(\d+)"><i[^>]*><\/i>(\d+) &middot; \d+ &middot; (?:\[x\] )?([^<]+)<\/a>/g;
 
