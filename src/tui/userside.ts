@@ -12,9 +12,9 @@ const REQUEST_TIMEOUT_MS = 15000;
 const DEBUG = Boolean(process.env.BUNGEE_DEBUG);
 
 function debug(...args: unknown[]): void {
-	if (DEBUG) {
-		console.log(...args);
-	}
+  if (DEBUG) {
+    console.log(...args);
+  }
 }
 
 export interface UserSideSearchResult {
@@ -96,29 +96,29 @@ export interface UserSideAbonentDetails {
 }
 
 export interface IfacePortData {
-	ifIndex: number;
-	ifType: number;
-	ifName: string;
-	ifNumber: number;
-	ifAlias: string;
-	ifAdminStatus: number;
-	ifOperStatus: number;
-	ifInErrors: number;
-	ifOutErrors: number;
-	ifHighSpeed?: number;
-	ifSpeed: number;
-	ifHCInOctets: number;
-	ifHCOutOctets: number;
-	ifInOctets: number;
-	ifOutOctets: number;
-	position: number;
-	count: number;
+  ifIndex: number;
+  ifType: number;
+  ifName: string;
+  ifNumber: number;
+  ifAlias: string;
+  ifAdminStatus: number;
+  ifOperStatus: number;
+  ifInErrors: number;
+  ifOutErrors: number;
+  ifHighSpeed?: number;
+  ifSpeed: number;
+  ifHCInOctets: number;
+  ifHCOutOctets: number;
+  ifInOctets: number;
+  ifOutOctets: number;
+  position: number;
+  count: number;
 }
 
 export interface IfaceJsonResponse {
-	time: number;
-	isIfaceAnimation: number;
-	data: IfacePortData[];
+  time: number;
+  isIfaceAnimation: number;
+  data: IfacePortData[];
 }
 
 export function createUserSideClient(config: UserSideConfig) {
@@ -129,100 +129,100 @@ export function createUserSideClient(config: UserSideConfig) {
   }
 
   async function search(query: string): Promise<UserSideSearchResult[]> {
-		const url = `${config.baseUrl}/oper/?core_section=customer_list&action=ajax_search&search=${encodeURIComponent(query)}`;
+    const url = `${config.baseUrl}/oper/?core_section=customer_list&action=ajax_search&search=${encodeURIComponent(query)}`;
 
-		debug(`[UserSide] Searching for: ${query}`);
-		debug(`[UserSide] URL: ${url}`);
+    debug(`[UserSide] Searching for: ${query}`);
+    debug(`[UserSide] URL: ${url}`);
 
-		const response = await fetch(url, {
-			headers: {
-				'Cookie': config.cookie,
-				'X-Requested-With': 'XMLHttpRequest',
-			},
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-		});
+    const response = await fetch(url, {
+      headers: {
+        'Cookie': config.cookie,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
 
-		if (!response.ok) {
-			console.error(`[UserSide] HTTP error: ${response.status}`);
-			throw new Error(`UserSide API error: ${response.status}`);
-		}
+    if (!response.ok) {
+      console.error(`[UserSide] HTTP error: ${response.status}`);
+      throw new Error(`UserSide API error: ${response.status}`);
+    }
 
-		const text = await response.text();
+    const text = await response.text();
 
-		return parseSearchResponse(text);
-	}
+    return parseSearchResponse(text);
+  }
 
-	async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
-		const url = `${config.baseUrl}/oper/?core_section=customer&action=show&id=${id}`;
+  async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
+    const url = `${config.baseUrl}/oper/?core_section=customer&action=show&id=${id}`;
 
-		debug(`[UserSide] Fetching abonent: ${id}`);
-		debug(`[UserSide] URL: ${url}`);
+    debug(`[UserSide] Fetching abonent: ${id}`);
+    debug(`[UserSide] URL: ${url}`);
 
-		const response = await fetch(url, {
-			headers: {
-				'Cookie': config.cookie,
-			},
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-		});
+    const response = await fetch(url, {
+      headers: {
+        'Cookie': config.cookie,
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
 
-		if (!response.ok) {
-			console.error(`[UserSide] HTTP error: ${response.status}`);
-			throw new Error(`UserSide API error: ${response.status}`);
-		}
+    if (!response.ok) {
+      console.error(`[UserSide] HTTP error: ${response.status}`);
+      throw new Error(`UserSide API error: ${response.status}`);
+    }
 
-		const html = await response.text();
-		debug(`[UserSide] Response length: ${html.length}`);
+    const html = await response.text();
+    debug(`[UserSide] Response length: ${html.length}`);
 
-		const abonent = parseAbonentPage(html);
+    const abonent = parseAbonentPage(html);
 
-		if (!abonent.id && !abonent.account) {
-			throw new Error('Не удалось разобрать карточку абонента (изменилась вёрстка UserSide или истекла сессия)');
-		}
+    if (!abonent.id && !abonent.account) {
+      throw new Error('Не удалось разобрать карточку абонента (изменилась вёрстка UserSide или истекла сессия)');
+    }
 
-		return abonent;
-	}
+    return abonent;
+  }
 
-	async function getIfaceData(deviceId: string, referer?: string): Promise<IfaceJsonResponse> {
-		const url = `${config.baseUrl}/oper/?core_section=device&action=iface_json_data&id=${deviceId}`;
+  async function getIfaceData(deviceId: string, referer?: string): Promise<IfaceJsonResponse> {
+    const url = `${config.baseUrl}/oper/?core_section=device&action=iface_json_data&id=${deviceId}`;
 
-		debug(`[UserSide] Fetching iface data for device: ${deviceId}`);
+    debug(`[UserSide] Fetching iface data for device: ${deviceId}`);
 
-		const headers: Record<string, string> = {
-			'Cookie': config.cookie,
-			'X-Requested-With': 'XMLHttpRequest',
-		};
-		if (referer) {
-			headers['Referer'] = referer;
-		}
+    const headers: Record<string, string> = {
+      'Cookie': config.cookie,
+      'X-Requested-With': 'XMLHttpRequest',
+    };
+    if (referer) {
+      headers['Referer'] = referer;
+    }
 
-		const response = await fetch(url, {
-			headers,
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-		});
+    const response = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
 
-		if (!response.ok) {
-			console.error(`[UserSide] HTTP error: ${response.status}`);
-			throw new Error(`UserSide API error: ${response.status}`);
-		}
+    if (!response.ok) {
+      console.error(`[UserSide] HTTP error: ${response.status}`);
+      throw new Error(`UserSide API error: ${response.status}`);
+    }
 
-		const text = await response.text();
+    const text = await response.text();
 
-		let data: IfaceJsonResponse;
-		try {
-			data = JSON.parse(text) as IfaceJsonResponse;
-		} catch {
-			throw new Error('UserSide вернул некорректный ответ iface_json_data');
-		}
+    let data: IfaceJsonResponse;
+    try {
+      data = JSON.parse(text) as IfaceJsonResponse;
+    } catch {
+      throw new Error('UserSide вернул некорректный ответ iface_json_data');
+    }
 
-		if (!data || !Array.isArray(data.data)) {
-			throw new Error('В ответе iface_json_data отсутствуют данные портов');
-		}
+    if (!data || !Array.isArray(data.data)) {
+      throw new Error('В ответе iface_json_data отсутствуют данные портов');
+    }
 
-		debug(`[UserSide] Iface data: ${data.data.length} ports`);
-		return data;
-	}
+    debug(`[UserSide] Iface data: ${data.data.length} ports`);
+    return data;
+  }
 
-	return { search, getAbonent, getIfaceData, getAbonentUrl };
+  return { search, getAbonent, getIfaceData, getAbonentUrl };
 }
 
 export function parseSearchResponse(text: string): UserSideSearchResult[] {
@@ -428,7 +428,7 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
 
   const connectionPoints: ConnectionPointData[] = [];
 
-  const cpRegexWithIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<br>\s*IP:\s*([\d.]+)<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
+  const cpRegexWithIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<\/i>?<br>\s*IP:\s*([\d.]+)<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
   let cpMatch;
   while ((cpMatch = cpRegexWithIp.exec(html)) !== null) {
     const cpDeviceId = cpMatch[1]!.trim();
@@ -461,7 +461,7 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
     });
   }
 
-  const cpRegexNoIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
+  const cpRegexNoIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<\/i>?<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
   while ((cpMatch = cpRegexNoIp.exec(html)) !== null) {
     const cpDeviceId = cpMatch[1]!.trim();
     const cpDeviceInfo = cpMatch[2]!.trim().replace(/&#047;/g, '/');

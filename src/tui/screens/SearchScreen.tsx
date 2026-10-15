@@ -3,7 +3,7 @@
  * Основной экран для поиска и выбора абонента
  */
 
-import { createSignal, createMemo, Show, For, onCleanup, onMount } from "solid-js";
+import { createSignal, createMemo, createEffect, Show, For, onCleanup } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import type { Store, Abonent } from "../store.js";
 import { usersideClient } from "../client.js";
@@ -22,15 +22,26 @@ export default function SearchScreen(props: SearchScreenProps) {
 
   let inputRef: any = null;
 
-  // Автофокус на input при монтировании
-  onMount(() => {
-    if (inputRef && inputRef.focus) {
+  // Фокус в поле ввода, пока активен экран поиска и закрыта справка
+  createEffect(() => {
+    const screen = store.currentScreen();
+    const helpVisible = store.isHelpVisible();
+    if (!inputRef) return;
+
+    if (screen === "search" && !helpVisible) {
       inputRef.focus();
+    } else {
+      inputRef.blur();
     }
   });
 
-  // Снимаем фокус при размонтировании
+  // Cleanup: гасим таймер дебаунса и инвалидируем незавершённые запросы
   onCleanup(() => {
+    const timeout = searchTimeout();
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    searchRequestId++;
     if (inputRef && inputRef.blur) {
       inputRef.blur();
     }
@@ -201,15 +212,6 @@ export default function SearchScreen(props: SearchScreenProps) {
     }
   }
 
-  // Cleanup
-  onCleanup(() => {
-    const timeout = searchTimeout();
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    searchRequestId++;
-  });
-
   return (
     <box flexDirection="column" flexGrow={1} padding={1}>
       {/* Input */}
@@ -249,9 +251,8 @@ export default function SearchScreen(props: SearchScreenProps) {
         <Show when={results().length > 0}>
           {/* Заголовок таблицы */}
           <box flexDirection="row" backgroundColor="#2a2a3e" paddingX={1}>
-            <text width={8} fg="#888">Лицевой</text>
-            <text width={30} fg="#888">ФИО</text>
-            <text flexGrow={1} fg="#888">Адрес</text>
+            <text width={10} fg="#888">Лицевой</text>
+            <text fg="#888">ФИО</text>
           </box>
 
         {/* Строки */}
@@ -267,9 +268,8 @@ export default function SearchScreen(props: SearchScreenProps) {
                 selectAbonent(index());
               }}
             >
-              <text width={8}>{abonent.account}</text>
-              <text width={30}>{abonent.fullName}</text>
-              <text flexGrow={1}>{abonent.address.full}</text>
+              <text width={10}>{abonent.account}</text>
+              <text>{abonent.fullName}</text>
             </box>
           )}
         </For>

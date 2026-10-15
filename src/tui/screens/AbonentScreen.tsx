@@ -3,11 +3,12 @@
 * Отображает детальную информацию об абоненте
 */
 
-import { Show, For, createSignal, onCleanup, createEffect } from "solid-js";
+import { Show, For, onCleanup, createEffect } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import { TextAttributes } from "@opentui/core";
 import type { Store, Equipment, IpMacEntry } from "../store.js";
 import { usersideClient } from "../client.js";
+import { formatTraffic, getPortStatusBg, getPortStatusText, getLinkSpeedBg, getLinkSpeedText } from "../format.js";
 
 const PORT_POLL_INTERVAL = 5000;
 
@@ -27,7 +28,7 @@ function isWithinLastHour(timeStr: string): boolean {
 export default function AbonentScreen(props: AbonentScreenProps) {
 	const store = props.store;
 	const abonent = () => store.selectedAbonent();
-	const [selectedEquipment, setSelectedEquipment] = createSignal(0);
+	const selectedEquipment = () => store.selectedEquipmentIndex();
 	let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 	let isPolling = false;
 	let isActive = false;
@@ -54,16 +55,16 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 		switch (key.name) {
 			case "up":
 				if (abonent() && selectedEquipment() > 0) {
-					setSelectedEquipment(prev => prev - 1);
+					store.setSelectedEquipmentIndex(prev => prev - 1);
 				}
 				return true;
 			case "down":
 				if (abonent() && selectedEquipment() < abonent()!.equipment.length - 1) {
-					setSelectedEquipment(prev => prev + 1);
+					store.setSelectedEquipmentIndex(prev => prev + 1);
 				}
 				return true;
 			case "return":
-			case "enter":
+			case "enter": {
 				const eq = abonent()?.equipment[selectedEquipment()];
 				if (eq) {
 					if (eq.type === "switch") {
@@ -75,6 +76,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 					}
 				}
 				return true;
+			}
 		}
 
 		return false;
@@ -139,53 +141,6 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 		isActive = false;
 		store.setPortPollError(null);
 	});
-
-  // Форматирование трафика в читаемые единицы
-  function formatTraffic(octets: number): string {
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let value = octets;
-    let unitIndex = 0;
-    
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-    
-    if (unitIndex === 0) {
-      return `${value} ${units[unitIndex]}`;
-    }
-    return `${value.toFixed(1)} ${units[unitIndex]}`;
-  }
-
-  // Фон для статуса порта (up/down)
-  function getPortStatusBg(status: "up" | "down" | undefined): string {
-    if (status === "down") return "#440000";
-    if (status === "up") return "#004400";
-    return "#222";
-  }
-
-  // Текст для статуса порта
-  function getPortStatusText(status: "up" | "down" | undefined): string {
-    if (status === "down") return "down";
-    if (status === "up") return "up";
-    return "—";
-  }
-
-  // Фон для скорости линка
-  function getLinkSpeedBg(speed: number | undefined): string {
-    if (!speed) return "#440000";
-    if (speed === 10) return "#442200";
-    if (speed === 100) return "#006600";
-    if (speed >= 1000) return "#008800";
-    return "#222";
-  }
-
-  // Текст для скорости линка
-  function getLinkSpeedText(speed: number | undefined): string {
-    if (!speed) return "—";
-    if (speed >= 1000) return `${speed / 1000}G`;
-    return `${speed}M`;
-  }
 
   // Рендер оборудования
   function renderEquipment(eq: Equipment, index: number) {
@@ -298,6 +253,11 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 
   const allIpMacEntries = () => getAllIpMacEntries();
 
+  const hasActivity = () => {
+    const activity = abonent()?.activity;
+    return Boolean(activity && (activity.network || activity.internet));
+  };
+
   return (
     <Show when={!store.abonentLoading()} fallback={
       <box flexDirection="column" flexGrow={1} padding={1} alignItems="center" justifyContent="center">
@@ -343,7 +303,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           </box>
 
       {/* Activity */}
-      <Show when={abonent()!.activity}>
+      <Show when={hasActivity()}>
         <box flexDirection="row" marginTop={1} gap={2}>
           <text fg="#888">Сеть:</text>
           <text fg={isWithinLastHour(abonent()!.activity?.network || '') ? "#44ff44" : "#ff4444"}>

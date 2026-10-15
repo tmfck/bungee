@@ -118,6 +118,7 @@ export function createStore() {
     const [selectedAbonent, setSelectedAbonent] = createSignal<AbonentDetails | null>(null);
     const [abonentLoading, setAbonentLoading] = createSignal(false);
     const [portPollError, setPortPollError] = createSignal<string | null>(null);
+    const [selectedEquipmentIndex, setSelectedEquipmentIndex] = createSignal(0);
 
     // === UI состояние ===
     const [isHelpVisible, setIsHelpVisible] = createSignal(false);
@@ -157,6 +158,7 @@ export function createStore() {
     setSelectedAbonent(abonent);
     setAbonentLoading(false);
     setPortPollError(null);
+    setSelectedEquipmentIndex(0);
   }
 
   // === Методы обновления портов ===
@@ -204,18 +206,20 @@ export function createStore() {
     searchError,
     selectedAbonent,
     abonentLoading,
-    portPollError,
-    isHelpVisible,
+        portPollError,
+        isHelpVisible,
+        selectedEquipmentIndex,
 
-    // Setters
-    setSearchInputValue,
-    setSearchResults: setFullSearchResults,
-    setSearchLoading,
-    setSearchError,
-    setSelectedAbonent: setFullSelectedAbonent,
-    setAbonentLoading,
-    setPortPollError,
-    updateEquipmentPortData,
+        // Setters
+        setSearchInputValue,
+        setSearchResults: setFullSearchResults,
+        setSearchLoading,
+        setSearchError,
+        setSelectedAbonent: setFullSelectedAbonent,
+        setAbonentLoading,
+        setPortPollError,
+        setSelectedEquipmentIndex,
+        updateEquipmentPortData,
 
     // Methods
     navigateTo,
