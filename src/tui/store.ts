@@ -67,18 +67,18 @@ export interface AbonentDetails extends Abonent {
 }
 
 export interface Equipment {
-	type: EquipmentType;
-	model: string;
-	mac: string;
-	ip?: string;
-	port?: number;
-	location?: string;
+  type: EquipmentType;
+  model: string;
+  mac: string;
+  ip?: string;
+  port?: number;
+  location?: string;
   // Дополнительные поля для ONU
   oltAddress?: string;
   oltPort?: string;
   onuMac?: string;
-	// Список IP-MAC соответствий
-	ipMacList?: IpMacEntry[];
+  // Список IP-MAC соответствий
+  ipMacList?: IpMacEntry[];
   // Состояние порта (для switch)
   portAdmin?: "on" | "off";
   portSpeed?: number;
@@ -89,13 +89,13 @@ export interface Equipment {
   portDescription?: string;
   // Имя порта (например 1/4)
   portName?: string;
-	// Счётчики трафика
-	inOctets?: number;
-	outOctets?: number;
-	inErrors?: number;
-	outErrors?: number;
-	// Device ID для опроса состояния портов
-	deviceId?: string;
+  // Счётчики трафика
+  inOctets?: number;
+  outOctets?: number;
+  inErrors?: number;
+  outErrors?: number;
+  // Device ID для опроса состояния портов
+  deviceId?: string;
 }
 
 export type EquipmentType = "switch" | "olt" | "onu" | "router";
@@ -152,16 +152,16 @@ export function createStore() {
       setSearchError(null);
     }
 
-	// === Методы абонента ===
-	function setFullSelectedAbonent(abonent: AbonentDetails) {
-		setSelectedAbonent(abonent);
-		setAbonentLoading(false);
-		setPortPollError(null);
-	}
+  // === Методы абонента ===
+  function setFullSelectedAbonent(abonent: AbonentDetails) {
+    setSelectedAbonent(abonent);
+    setAbonentLoading(false);
+    setPortPollError(null);
+  }
 
-	// === Методы обновления портов ===
-	function updateEquipmentPortData(
-		equipmentIndex: number,
+  // === Методы обновления портов ===
+  function updateEquipmentPortData(
+    equipmentIndex: number,
     data: {
       portAdmin?: "on" | "off";
       portStatus?: "up" | "down";
@@ -171,59 +171,59 @@ export function createStore() {
       inErrors?: number;
       outErrors?: number;
     }
-	) {
-		const current = selectedAbonent();
-		if (!current) return;
+  ) {
+    const current = selectedAbonent();
+    if (!current) return;
 
-		const updatedEquipment = current.equipment.map((eq, idx) => {
-			if (idx === equipmentIndex) {
-				return { ...eq, ...data };
-			}
-			return eq;
-		});
+    const updatedEquipment = current.equipment.map((eq, idx) => {
+      if (idx === equipmentIndex) {
+        return { ...eq, ...data };
+      }
+      return eq;
+    });
 
-		setSelectedAbonent({ ...current, equipment: updatedEquipment });
-	}
+    setSelectedAbonent({ ...current, equipment: updatedEquipment });
+  }
 
-	// === Методы UI ===
-	function toggleHelp() {
-		setIsHelpVisible((prev) => !prev);
-	}
+  // === Методы UI ===
+  function toggleHelp() {
+    setIsHelpVisible((prev) => !prev);
+  }
 
-	function hideHelp() {
-		setIsHelpVisible(false);
-	}
+  function hideHelp() {
+    setIsHelpVisible(false);
+  }
 
-	return {
-		// Signals (read-only)
-		currentScreen,
-		screenHistory,
-		searchInputValue,
-		searchResults,
-		searchLoading,
-		searchError,
-		selectedAbonent,
-		abonentLoading,
-		portPollError,
-		isHelpVisible,
+  return {
+    // Signals (read-only)
+    currentScreen,
+    screenHistory,
+    searchInputValue,
+    searchResults,
+    searchLoading,
+    searchError,
+    selectedAbonent,
+    abonentLoading,
+    portPollError,
+    isHelpVisible,
 
-		// Setters
-		setSearchInputValue,
-		setSearchResults: setFullSearchResults,
-		setSearchLoading,
-		setSearchError,
-		setSelectedAbonent: setFullSelectedAbonent,
-		setAbonentLoading,
-		setPortPollError,
-		updateEquipmentPortData,
+    // Setters
+    setSearchInputValue,
+    setSearchResults: setFullSearchResults,
+    setSearchLoading,
+    setSearchError,
+    setSelectedAbonent: setFullSelectedAbonent,
+    setAbonentLoading,
+    setPortPollError,
+    updateEquipmentPortData,
 
-		// Methods
-		navigateTo,
-		goBack,
-		clearSearchResults,
-		toggleHelp,
-		hideHelp,
-	};
+    // Methods
+    navigateTo,
+    goBack,
+    clearSearchResults,
+    toggleHelp,
+    hideHelp,
+  };
 });
 }
 
