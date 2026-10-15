@@ -7,6 +7,8 @@ export interface UserSideConfig {
     cookie: string;
 }
 
+const REQUEST_TIMEOUT_MS = 15000;
+
 export interface UserSideSearchResult {
   id: string;
   account: string;
@@ -129,6 +131,7 @@ export function createUserSideClient(config: UserSideConfig) {
 				'Cookie': config.cookie,
 				'X-Requested-With': 'XMLHttpRequest',
 			},
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 		});
 
 		if (!response.ok) {
@@ -137,12 +140,8 @@ export function createUserSideClient(config: UserSideConfig) {
 		}
 
 		const text = await response.text();
-		console.log(`[UserSide] Response: ${text}`);
 
-		const results = parseSearchResponse(text);
-		console.log(`[UserSide] Parsed results: ${JSON.stringify(results)}`);
-
-		return results;
+		return parseSearchResponse(text);
 	}
 
 	async function getAbonent(id: string): Promise<UserSideAbonentDetails> {
@@ -155,6 +154,7 @@ export function createUserSideClient(config: UserSideConfig) {
 			headers: {
 				'Cookie': config.cookie,
 			},
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 		});
 
 		if (!response.ok) {
@@ -166,7 +166,10 @@ export function createUserSideClient(config: UserSideConfig) {
 		console.log(`[UserSide] Response length: ${html.length}`);
 
 		const abonent = parseAbonentPage(html);
-		console.log(`[UserSide] Parsed abonent:`, abonent);
+
+		if (!abonent.id && !abonent.account) {
+			throw new Error('Не удалось разобрать карточку абонента (изменилась вёрстка UserSide или истекла сессия)');
+		}
 
 		return abonent;
 	}
@@ -184,7 +187,10 @@ export function createUserSideClient(config: UserSideConfig) {
 			headers['Referer'] = referer;
 		}
 
-		const response = await fetch(url, { headers });
+		const response = await fetch(url, {
+			headers,
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+		});
 
 		if (!response.ok) {
 			console.error(`[UserSide] HTTP error: ${response.status}`);
@@ -192,7 +198,18 @@ export function createUserSideClient(config: UserSideConfig) {
 		}
 
 		const text = await response.text();
-		const data = JSON.parse(text) as IfaceJsonResponse;
+
+		let data: IfaceJsonResponse;
+		try {
+			data = JSON.parse(text) as IfaceJsonResponse;
+		} catch {
+			throw new Error('UserSide вернул некорректный ответ iface_json_data');
+		}
+
+		if (!data || !Array.isArray(data.data)) {
+			throw new Error('В ответе iface_json_data отсутствуют данные портов');
+		}
+
 		console.log(`[UserSide] Iface data: ${data.data.length} ports`);
 		return data;
 	}
@@ -200,56 +217,56 @@ export function createUserSideClient(config: UserSideConfig) {
 	return { search, getAbonent, getIfaceData, getAbonentUrl };
 }
 
-function parseSearchResponse(html: string): UserSideSearchResult[] {
+export function parseSearchResponse(text: string): UserSideSearchResult[] {
   const results: UserSideSearchResult[] = [];
 
-  console.log(`[UserSide Parser] Input length: ${html.length}`);
-
+  let json: { data?: unknown };
   try {
-    const json = JSON.parse(html);
-    const data = json.data;
+    json = JSON.parse(text) as { data?: unknown };
+  } catch {
+    throw new Error('UserSide вернул не-JSON ответ поиска (истекла сессия или изменился раздел)');
+  }
 
-    console.log(`[UserSide Parser] Data field length: ${data.length}`);
+  const data = json.data;
+  if (typeof data !== 'string') {
+    throw new Error('Неожиданная структура ответа поиска UserSide');
+  }
 
-    const decodedData = data
+  const decodedData = data
       .replace(/\\\\n/g, '\n')
       .replace(/\\\\\\/g, '\\')
       .replace(/\\"/g, '"');
 
-    console.log(`[UserSide Parser] Decoded data preview: ${decodedData.substring(0, 300)}`);
+  console.log(`[UserSide Parser] Decoded data preview: ${decodedData.substring(0, 300)}`);
 
-    const linkRegex = /<a href="\?core_section=customer&action=show&id=(\d+)"><i[^>]*><\/i>(\d+) &middot; \d+ &middot; (?:\[x\] )?([^<]+)<\/a>/g;
+  const linkRegex = /<a href="\?core_section=customer&action=show&id=(\d+)"><i[^>]*><\/i>(\d+) &middot; \d+ &middot; (?:\[x\] )?([^<]+)<\/a>/g;
 
-    let match;
-    let matchCount = 0;
-    while ((match = linkRegex.exec(decodedData)) !== null) {
-      matchCount++;
-      const id = match[1];
-      const account = match[2];
-      const fullNameRaw = match[3];
+  let match;
+  let matchCount = 0;
+  while ((match = linkRegex.exec(decodedData)) !== null) {
+    matchCount++;
+    const id = match[1];
+    const account = match[2];
+    const fullNameRaw = match[3];
 
-      console.log(`[UserSide Parser] Match ${matchCount}: id=${id}, account=${account}, fullNameRaw=${fullNameRaw}`);
+    if (!id || !account || !fullNameRaw) continue;
 
-      if (!id || !account || !fullNameRaw) continue;
-
-      let fullName = fullNameRaw;
-      const atIndex = fullName.indexOf('@');
-      if (atIndex > 0) {
-        fullName = fullName.substring(0, atIndex).trim();
-      }
-      fullName = fullName.replace(/@[^\s@]+/g, '').trim();
-
-      results.push({
-        id,
-        account,
-        fullName,
-      });
+    let fullName = fullNameRaw;
+    const atIndex = fullName.indexOf('@');
+    if (atIndex > 0) {
+      fullName = fullName.substring(0, atIndex).trim();
     }
+    fullName = fullName.replace(/@[^\s@]+/g, '').trim();
 
-    console.log(`[UserSide Parser] Total regex matches: ${matchCount}`);
-  } catch (e) {
-    console.error('[UserSide Parser] Failed to parse:', e);
-    console.log(`[UserSide Parser] Response preview: ${html.substring(0, 300)}`);
+    results.push({
+      id,
+      account,
+      fullName,
+    });
+  }
+
+  if (matchCount === 0 && decodedData.includes('core_section=customer')) {
+    throw new Error('Не удалось разобрать результаты поиска: изменился формат ответа UserSide');
   }
 
   return results;
@@ -288,7 +305,7 @@ export function parseNotesToOltInfo(notes: string): OltInfoFromNotes | null {
   return null;
 }
 
-function parseAbonentPage(html: string): UserSideAbonentDetails {
+export function parseAbonentPage(html: string): UserSideAbonentDetails {
   function extractValue(label: string): string | null {
     const regex = new RegExp(`<div class="left_data">\\s*${escapeRegex(label)}[\\s\\S]*?<\\/div>\\s*<div>([\\s\\S]*?)<\\/div>`, 'i');
     const match = html.match(regex);
@@ -380,8 +397,14 @@ function parseAbonentPage(html: string): UserSideAbonentDetails {
   const email = emailMatch?.[1]?.trim() || undefined;
 
   const ipMacList: IpMacEntry[] = [];
-  const ipMacSectionMatch = html.match(/IP\/MAC-адреса[\s\S]*?(?=<a id="ref_)/);
-  const ipMacSection = ipMacSectionMatch?.[0] ?? html;
+  let ipMacSection = '';
+  const ipMacLabelIndex = html.search(/IP\/MAC-адреса/);
+  if (ipMacLabelIndex >= 0) {
+    const sectionEndIndex = html.indexOf('<a id="ref_', ipMacLabelIndex);
+    ipMacSection = sectionEndIndex >= 0
+      ? html.slice(ipMacLabelIndex, sectionEndIndex)
+      : html.slice(ipMacLabelIndex);
+  }
   const ipMacRegex = /<div class="item">[\s\S]*?<div>\s*([\d.]+)<\/div>\s*<div>\s*([A-Fa-f0-9:]+)?[\s\S]*?<\/div>\s*<div>\s*([^<]*)<\/div>/g;
   let ipMacMatch;
   while ((ipMacMatch = ipMacRegex.exec(ipMacSection)) !== null) {
