@@ -20,6 +20,7 @@ bun run src/index.tsx    # Run once
 
 ## Key Details
 
+- **Docs skill**: OpenTUI documentation skill installed at `.agents/skills/opentui` (registered via `.kilo/kilo.json` `skills.paths`). Use it for any OpenTUI questions — read the relevant `.mdx` files from `.agents/skills/opentui/docs/` instead of guessing APIs. Docs match project version 0.6.4. Update with `bunx skills update`.
 - **JSX**: Uses `.tsx` extension; imports use `.jsx` (e.g., `import App from "./App.jsx"`)
 - **Preload**: `bunfig.toml` preloads `@opentui/solid/preload` — required for JSX transform
 - **JSX config**: `tsconfig.json` sets `"jsxImportSource": "@opentui/solid"`

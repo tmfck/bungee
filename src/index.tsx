@@ -39,7 +39,9 @@ async function main() {
 	});
 
 	// Рендерим Solid.js приложение
-	render(() => <App renderer={renderer} />);
+	// В @opentui/solid 0.6+ render() создаёт свой CliRenderer, если он не передан,
+	// поэтому обязательно передаём уже созданный рендерер
+	await render(() => <App renderer={renderer} />, renderer);
 
 	// Обработка завершения
 	process.on("exit", () => {

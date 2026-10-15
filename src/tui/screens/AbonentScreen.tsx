@@ -89,7 +89,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 		const referer = `?core_section=customer&action=show&id=${currentAbonent.id}`;
 
 		for (let i = 0; i < currentAbonent.equipment.length; i++) {
-			const eq = currentAbonent.equipment[i];
+          const eq = currentAbonent.equipment[i]!;
 			if (eq.type === "switch" && eq.deviceId && eq.port) {
 				try {
 					const data = await usersideClient.getIfaceData(eq.deviceId, referer);
@@ -298,7 +298,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           <text fg="#888">Нет данных об абоненте</text>
         </box>
       }>
-        <box flexDirection="column" flexGrow={1} padding={1} scrollable overflowY="scroll" position="relative">
+        <scrollbox flexDirection="column" flexGrow={1} padding={1} scrollY position="relative">
           {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
           <box flexDirection="column" flexGrow={0} flexShrink={0}>
             <box flexDirection="column" flexGrow={1} flexShrink={1}>
@@ -382,13 +382,13 @@ export default function AbonentScreen(props: AbonentScreenProps) {
               <text fg="#666">↑/↓ выбор | Enter диагностика</text>
             </box>
 
-            <box flexDirection="column" flexGrow={1} scrollable overflowY="scroll">
+            <scrollbox flexDirection="column" flexGrow={1} scrollY>
               <For each={abonent()!.equipment}>
                 {(eq, index) => renderEquipment(eq, index())}
               </For>
-            </box>
+            </scrollbox>
           </box>
-        </box>
+        </scrollbox>
       </Show>
     </Show>
   );

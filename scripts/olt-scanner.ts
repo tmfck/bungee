@@ -20,7 +20,7 @@ async function readAddresses(filePath: string): Promise<OltAddress[]> {
   return lines.map(line => {
     const [ip, port = '23'] = line.split(':');
     return {
-      ip: ip.trim(),
+      ip: ip!.trim(),
       port: parseInt(port.trim(), 10) || 23
     };
   });
@@ -53,7 +53,7 @@ function parsePortStats(output: string): { port: string; subscribers: number; wi
   let match;
 
   while ((match = interfaceRegex.exec(output)) !== null) {
-    const portName = match[1];
+    const portName = match[1]!;
     const startIndex = match.index;
 
     const savedLastIndex = interfaceRegex.lastIndex;
@@ -64,7 +64,7 @@ function parsePortStats(output: string): { port: string; subscribers: number; wi
     const portData = output.slice(startIndex, endIndex);
 
     const subscribersMatch = portData.match(/has registered (\d+) ONUs/);
-    const subscribers = subscribersMatch ? parseInt(subscribersMatch[1], 10) : 0;
+    const subscribers = subscribersMatch ? parseInt(subscribersMatch[1]!, 10) : 0;
 
     const wireDownCount = (portData.match(/wire-down/g) || []).length;
     const dynamicOnuCount = (portData.match(/\bdynamic\b/g) || []).length;
