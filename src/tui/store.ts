@@ -117,6 +117,7 @@ export function createStore() {
     // === Состояние абонента ===
     const [selectedAbonent, setSelectedAbonent] = createSignal<AbonentDetails | null>(null);
     const [abonentLoading, setAbonentLoading] = createSignal(false);
+    const [portPollError, setPortPollError] = createSignal<string | null>(null);
 
     // === UI состояние ===
     const [isHelpVisible, setIsHelpVisible] = createSignal(false);
@@ -155,6 +156,7 @@ export function createStore() {
 	function setFullSelectedAbonent(abonent: AbonentDetails) {
 		setSelectedAbonent(abonent);
 		setAbonentLoading(false);
+		setPortPollError(null);
 	}
 
 	// === Методы обновления портов ===
@@ -202,7 +204,7 @@ export function createStore() {
 		searchError,
 		selectedAbonent,
 		abonentLoading,
-		isHelpVisible,
+		portPollError,
 
 		// Setters
 		setSearchInputValue,
@@ -211,6 +213,7 @@ export function createStore() {
 		setSearchError,
 		setSelectedAbonent: setFullSelectedAbonent,
 		setAbonentLoading,
+		setPortPollError,
 		updateEquipmentPortData,
 
 		// Methods

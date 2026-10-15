@@ -108,10 +108,13 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 							});
 						}
 					} catch (err) {
+						store.setPortPollError(err instanceof Error ? err.message : "Ошибка опроса портов");
 						console.error(`[PortPoll] Error polling device ${eq.deviceId}:`, err);
 					}
 				}
 			}
+
+			store.setPortPollError(null);
 		} finally {
 			isPolling = false;
 		}
@@ -132,7 +135,9 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 
 	onCleanup(() => {
 		stopPolling();
+		isPolling = false;
 		isActive = false;
+		store.setPortPollError(null);
 	});
 
   // Форматирование трафика в читаемые единицы
@@ -387,6 +392,10 @@ export default function AbonentScreen(props: AbonentScreenProps) {
               <text fg="#fff" attributes={TextAttributes.BOLD}>Оборудование ({abonent()!.equipment.length})</text>
               <text fg="#666">↑/↓ выбор | Enter диагностика</text>
             </box>
+
+            <Show when={store.portPollError()}>
+              <text fg="#ff4444">⚠ Опрос портов: {store.portPollError()}</text>
+            </Show>
 
             <scrollbox flexDirection="column" flexGrow={1} scrollY>
               <For each={abonent()!.equipment}>
