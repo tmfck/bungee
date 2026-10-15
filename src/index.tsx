@@ -6,20 +6,7 @@
 import { render } from "@opentui/solid";
 import { createCliRenderer, ConsolePosition, DebugOverlayCorner } from "@opentui/core";
 import App from "./tui/App.jsx";
-import { createUserSideClient } from "./tui/userside.js";
-
-const USERSIDE_URL = process.env.USERSIDE_URL;
-const USERSIDE_COOKIE = process.env.USERSIDE_COOKIE;
-
-if (!USERSIDE_URL || !USERSIDE_COOKIE) {
-	console.error("Error: USERSIDE_URL and USERSIDE_COOKIE must be set in .env");
-	process.exit(1);
-}
-
-export const usersideClient = createUserSideClient({
-	baseUrl: USERSIDE_URL,
-	cookie: USERSIDE_COOKIE,
-});
+import "./tui/client.js";
 
 async function main() {
 	const renderer = await createCliRenderer({

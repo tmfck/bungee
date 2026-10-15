@@ -13,7 +13,6 @@ import AbonentScreen from "./screens/AbonentScreen.tsx";
 import SwitchScreen from "./screens/SwitchScreen.tsx";
 import OLTScreen from "./screens/OLTScreen.tsx";
 import HelpModal from "./components/HelpModal.tsx";
-export { usersideClient } from "../index.js";
 
 interface AppProps {
   renderer: CliRenderer;

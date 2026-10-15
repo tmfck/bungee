@@ -6,7 +6,8 @@
 import { createSignal, createMemo, Show, For, onCleanup, onMount } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import type { Store, Abonent } from "../store.js";
-import { createUserSideClient, type UserSideConfig, parseNotesToOltInfo } from "../userside.js";
+import { usersideClient } from "../client.js";
+import { parseNotesToOltInfo } from "../userside.js";
 
 interface SearchScreenProps {
   store: Store;
@@ -20,12 +21,6 @@ export default function SearchScreen(props: SearchScreenProps) {
   let searchRequestId = 0;
 
   let inputRef: any = null;
-
-  const usersideConfig: UserSideConfig = {
-    baseUrl: process.env.USERSIDE_URL!,
-    cookie: process.env.USERSIDE_COOKIE!,
-  };
-  const userside = createUserSideClient(usersideConfig);
 
   // Автофокус на input при монтировании
   onMount(() => {
@@ -79,7 +74,7 @@ export default function SearchScreen(props: SearchScreenProps) {
       store.setSearchLoading(true);
 
       try {
-        const usResults = await userside.search(value);
+        const usResults = await usersideClient.search(value);
         if (isStale()) return;
         const abonents: Abonent[] = usResults.map(r => ({
           id: r.id,
@@ -142,7 +137,7 @@ export default function SearchScreen(props: SearchScreenProps) {
       store.navigateTo("abonent");
       
       try {
-        const details = await userside.getAbonent(selected.id);
+        const details = await usersideClient.getAbonent(selected.id);
         
           const oltInfo = parseNotesToOltInfo(details.notes || '');
 

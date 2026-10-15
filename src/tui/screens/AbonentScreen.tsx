@@ -7,7 +7,7 @@ import { Show, For, createSignal, onCleanup, createEffect } from "solid-js";
 import { useKeyboard } from "@opentui/solid";
 import { TextAttributes } from "@opentui/core";
 import type { Store, Equipment, IpMacEntry } from "../store.js";
-import { usersideClient } from "../App.jsx";
+import { usersideClient } from "../client.js";
 
 const PORT_POLL_INTERVAL = 5000;
 
