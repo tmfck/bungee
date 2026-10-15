@@ -5,8 +5,21 @@
 
 import { render } from "@opentui/solid";
 import { createCliRenderer, ConsolePosition, DebugOverlayCorner } from "@opentui/core";
+import { appendFileSync } from "node:fs";
 import App from "./tui/App.jsx";
 import "./tui/client.js";
+
+const ERROR_LOG = "debug_output.txt";
+
+function reportFatal(kind: string, error: unknown): void {
+	const details = error instanceof Error ? (error.stack ?? error.message) : String(error);
+	console.error(`${kind}:`, error);
+	try {
+		appendFileSync(ERROR_LOG, `[${new Date().toISOString()}] ${kind}: ${details}\n`);
+	} catch {
+		// не смогли записать лог — не маскируем исходную ошибку
+	}
+}
 
 async function main() {
 	const renderer = await createCliRenderer({
@@ -36,19 +49,19 @@ async function main() {
 	});
 
 	process.on("uncaughtException", (error) => {
-		console.error("Необработанное исключение:", error);
+		reportFatal("Необработанное исключение", error);
 		renderer.destroy();
 		process.exit(1);
 	});
 
 	process.on("unhandledRejection", (reason) => {
-		console.error("Необработанное отклонение промиса:", reason);
+		reportFatal("Необработанное отклонение промиса", reason);
 		renderer.destroy();
 		process.exit(1);
 	});
 }
 
 main().catch((error) => {
-	console.error("Ошибка запуска TUI:", error);
+	reportFatal("Ошибка запуска TUI", error);
 	process.exit(1);
 });
