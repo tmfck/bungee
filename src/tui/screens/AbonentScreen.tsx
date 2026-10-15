@@ -49,12 +49,9 @@ export default function AbonentScreen(props: AbonentScreenProps) {
 
 	useKeyboard((key) => {
 		if (store.currentScreen() !== "abonent") return false;
+		if (store.isHelpVisible()) return false;
 
 		switch (key.name) {
-			case "escape":
-				stopPolling();
-				store.goBack();
-				return true;
 			case "up":
 				if (abonent() && selectedEquipment() > 0) {
 					setSelectedEquipment(prev => prev - 1);

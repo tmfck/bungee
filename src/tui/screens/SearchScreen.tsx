@@ -113,7 +113,8 @@ export default function SearchScreen(props: SearchScreenProps) {
   // Навигация по результатам
   useKeyboard((key) => {
     if (store.currentScreen() !== "search") return false;
-    
+    if (store.isHelpVisible()) return false;
+
     // Если есть результаты - обрабатываем навигацию
     if (results().length > 0) {
       switch (key.name) {
@@ -270,6 +271,7 @@ export default function SearchScreen(props: SearchScreenProps) {
               paddingX={1}
               backgroundColor={selectedIndex() === index() ? "#1a3a5a" : undefined}
               onMouseDown={() => {
+                if (store.isHelpVisible()) return;
                 // Клик выбирает абонента
                 selectAbonent(index());
               }}

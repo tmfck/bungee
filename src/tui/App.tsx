@@ -59,6 +59,11 @@ export default function App(props: AppProps) {
 
   // Глобальные горячие клавиши
   useKeyboard((key) => {
+    // Пока открыта справка, фон не реагирует на клавиши
+    if (store.isHelpVisible() && key.name !== "escape" && key.name !== "f1") {
+      return;
+    }
+
     // F1 - Справка
     if (key.name === "f1") {
       store.toggleHelp();
@@ -112,9 +117,9 @@ export default function App(props: AppProps) {
       >
         <text fg="#00d9ff" attributes={TextAttributes.BOLD}>{screenTitle()}</text>
         <box flexDirection="row" gap={2}>
-          <text fg="#888" onMouseDown={() => store.toggleHelp()}>F1 - Справка</text>
-          <text fg="#888" onMouseDown={() => store.navigateTo("search")}>F3 - Поиск</text>
-          <text fg="#888" onMouseDown={() => process.exit(0)}>F10 - Выход</text>
+          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.toggleHelp(); }}>F1 - Справка</text>
+          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.navigateTo("search"); }}>F3 - Поиск</text>
+          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) process.exit(0); }}>F10 - Выход</text>
         </box>
       </box>
 
@@ -135,7 +140,7 @@ export default function App(props: AppProps) {
           <Show when={store.screenHistory().length > 0}>
             <text
               fg="#888"
-              onMouseDown={() => store.goBack()}
+              onMouseDown={() => { if (!store.isHelpVisible()) store.goBack(); }}
             >
               ← Назад
             </text>
