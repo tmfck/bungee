@@ -4,8 +4,7 @@
 */
 
 import { Show, createMemo } from "solid-js";
-import { useKeyboard } from "@opentui/solid";
-import type { CliRenderer } from "@opentui/core";
+import { useKeyboard, useRenderer } from "@opentui/solid";
 import { TextAttributes } from "@opentui/core";
 import { createStore } from "./store.js";
 import SearchScreen from "./screens/SearchScreen.tsx";
@@ -14,17 +13,14 @@ import SwitchScreen from "./screens/SwitchScreen.tsx";
 import OLTScreen from "./screens/OLTScreen.tsx";
 import HelpModal from "./components/HelpModal.tsx";
 
-interface AppProps {
-  renderer: CliRenderer;
-}
-
-export default function App(props: AppProps) {
+export default function App() {
   const store = createStore();
+  const renderer = useRenderer();
 
   async function exitApp() {
-    props.renderer.destroy();
+    renderer.destroy();
     try {
-      await props.renderer.closed;
+      await renderer.closed;
     } catch {
       // терминал уже восстановлен настолько, насколько возможно
     }
@@ -44,12 +40,10 @@ export default function App(props: AppProps) {
         return "Диагностика Switch";
       case "olt":
         return "Диагностика OLT";
-      default:
-        return "Bungee CLI";
     }
   });
 
-  // Текущий screen
+  // Текущий экран
   const getScreenComponent = () => {
     const screen = store.currentScreen();
     switch (screen) {
@@ -61,8 +55,6 @@ export default function App(props: AppProps) {
         return <SwitchScreen store={store} />;
       case "olt":
         return <OLTScreen store={store} />;
-      default:
-        return <SearchScreen store={store} />;
     }
   };
 
@@ -93,7 +85,7 @@ export default function App(props: AppProps) {
 
     // F12 - Консоль
     if (key.name === "f12") {
-      props.renderer.console.toggle();
+      renderer.console.toggle();
       return;
     }
 

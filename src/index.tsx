@@ -38,10 +38,10 @@ async function main() {
 		corner: DebugOverlayCorner.topRight,
 	});
 
-	// Рендерим Solid.js приложение
-	// В @opentui/solid 0.6+ render() создаёт свой CliRenderer, если он не передан,
-	// поэтому обязательно передаём уже созданный рендерер
-	await render(() => <App renderer={renderer} />, renderer);
+  // Рендерим Solid.js приложение
+  // В @opentui/solid 0.6+ render() создаёт свой CliRenderer, если он не передан,
+  // поэтому обязательно передаём уже созданный рендерер
+  await render(() => <App />, renderer);
 
 	// Обработка завершения
 	process.on("exit", () => {
