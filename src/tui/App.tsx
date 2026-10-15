@@ -21,6 +21,16 @@ interface AppProps {
 export default function App(props: AppProps) {
   const store = createStore();
 
+  async function exitApp() {
+    props.renderer.destroy();
+    try {
+      await props.renderer.closed;
+    } catch {
+      // терминал уже восстановлен настолько, насколько возможно
+    }
+    process.exit(0);
+  }
+
   // Заголовок экрана
   const screenTitle = createMemo(() => {
     const screen = store.currentScreen();
@@ -77,7 +87,7 @@ export default function App(props: AppProps) {
 
     // F10 - Выход
     if (key.name === "f10") {
-      process.exit(0);
+      void exitApp();
       return;
     }
 
@@ -87,12 +97,17 @@ export default function App(props: AppProps) {
       return;
     }
 
-    // Escape - назад или выход
+    // Escape - назад, сброс поиска или выход
     if (key.name === "escape") {
       if (store.isHelpVisible()) {
         store.hideHelp();
       } else if (store.currentScreen() === "search") {
-        props.renderer.destroy();
+        if (store.searchInputValue().length > 0) {
+          store.setSearchInputValue("");
+          store.clearSearchResults();
+        } else {
+          void exitApp();
+        }
       } else {
         store.goBack();
       }
@@ -118,7 +133,7 @@ export default function App(props: AppProps) {
         <box flexDirection="row" gap={2}>
           <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.toggleHelp(); }}>F1 - Справка</text>
           <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) store.navigateTo("search"); }}>F3 - Поиск</text>
-          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) process.exit(0); }}>F10 - Выход</text>
+          <text fg="#888" onMouseDown={() => { if (!store.isHelpVisible()) void exitApp(); }}>F10 - Выход</text>
         </box>
       </box>
 
