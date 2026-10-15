@@ -2,6 +2,9 @@
 
 import { Socket } from 'net';
 
+const CONCURRENCY = 8;
+const COMMAND_TIMEOUT_MS = 15000;
+
 interface OltAddress {
   ip: string;
   port: number;
@@ -48,7 +51,7 @@ function connectTelnet(ip: string, port: number, config: TelnetConfig): Promise<
 }
 
 function parsePortStats(output: string): { port: string; subscribers: number; wireDown: number; dynamicOnu: number }[] {
-  const portStats = [];
+  const portStats: { port: string; subscribers: number; wireDown: number; dynamicOnu: number }[] = [];
   const interfaceRegex = /Interface (EPON\S+)/g;
   let match;
 
@@ -75,8 +78,6 @@ function parsePortStats(output: string): { port: string; subscribers: number; wi
       wireDown: wireDownCount,
       dynamicOnu: dynamicOnuCount
     });
-
-    if (!nextMatch) break;
   }
 
   return portStats;
@@ -85,63 +86,72 @@ function parsePortStats(output: string): { port: string; subscribers: number; wi
 async function waitForPattern(socket: Socket, pattern: string | RegExp, timeoutMs: number = 10000): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = '';
-    let resolved = false;
+    let settled = false;
 
-    const cleanup = () => {
-      if (!resolved) {
-        resolved = true;
-        socket.off('data', onData);
-        reject(new Error(`Timeout waiting for pattern: ${pattern}`));
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      socket.off('data', onData);
+      socket.off('error', onError);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(buffer);
       }
     };
-
-    const timeout = setTimeout(cleanup, timeoutMs);
 
     const onData = (data: Buffer) => {
       buffer += data.toString();
-      
-      const matches = typeof pattern === 'string' 
-        ? buffer.includes(pattern) 
+
+      const matches = typeof pattern === 'string'
+        ? buffer.includes(pattern)
         : pattern.test(buffer);
-      
+
       if (matches) {
-        resolved = true;
-        clearTimeout(timeout);
-        socket.off('data', onData);
-        resolve(buffer);
+        finish();
       }
     };
 
+    const onError = (err: Error) => finish(err);
+
+    const timeout = setTimeout(() => finish(new Error(`Timeout waiting for pattern: ${pattern}`)), timeoutMs);
+
     socket.on('data', onData);
+    socket.on('error', onError);
   });
 }
 
-async function collectUntilEnd(socket: Socket, endMarker: RegExp, debugIp?: string): Promise<string> {
+async function collectUntilEnd(socket: Socket, endMarker: RegExp, timeoutMs: number = COMMAND_TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = '';
     let hasMore = false;
-    let isResolved = false;
-    
+    let settled = false;
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      socket.off('data', onData);
+      socket.off('end', onEnd);
+      socket.off('close', onClose);
+      socket.off('error', onError);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(buffer);
+      }
+    };
+
     const checkComplete = () => {
       const lines = buffer.split('\n');
       const lastLine = lines[lines.length - 1];
-      
+
       if (lastLine && endMarker.test(lastLine) && !hasMore) {
-        cleanup();
-        resolve(buffer);
+        finish();
         return true;
       }
       return false;
-    };
-
-    const cleanup = () => {
-      if (!isResolved) {
-        isResolved = true;
-        socket.off('data', onData);
-        socket.off('end', onEnd);
-        socket.off('close', onClose);
-        socket.off('error', onError);
-      }
     };
 
     const onData = (data: Buffer) => {
@@ -158,20 +168,11 @@ async function collectUntilEnd(socket: Socket, endMarker: RegExp, debugIp?: stri
       if (checkComplete()) return;
     };
 
-    const onEnd = () => {
-      cleanup();
-      resolve(buffer);
-    };
+    const onEnd = () => finish();
+    const onClose = () => finish();
+    const onError = (err: Error) => finish(err);
 
-    const onClose = () => {
-      cleanup();
-      resolve(buffer);
-    };
-
-    const onError = (err: Error) => {
-      cleanup();
-      reject(err);
-    };
+    const timeout = setTimeout(() => finish(new Error(`Timeout waiting for command output (${endMarker})`)), timeoutMs);
 
     socket.on('data', onData);
     socket.on('end', onEnd);
@@ -180,11 +181,12 @@ async function collectUntilEnd(socket: Socket, endMarker: RegExp, debugIp?: stri
   });
 }
 
-async function processOltWithSocket(ip: string, config: TelnetConfig): Promise<void> {
-  const socket = await connectTelnet(ip, 23, config);
+async function processOltWithSocket(addr: OltAddress, config: TelnetConfig): Promise<string[]> {
+  const socket = await connectTelnet(addr.ip, addr.port, config);
+  const rows: string[] = [];
 
   let fullBuffer = '';
-  
+
     const dataHandler = (data: Buffer) => {
     const chunk = data.toString();
     fullBuffer += chunk;
@@ -205,27 +207,40 @@ async function processOltWithSocket(ip: string, config: TelnetConfig): Promise<v
 
     socket.off('data', dataHandler);
 
-    fullBuffer = '';
     socket.write('show epon onu-information\r\n');
 
     const commandOutput = await collectUntilEnd(socket, /^[^\n]*#/m);
-    fullBuffer = commandOutput;
 
-    const portStats = parsePortStats(fullBuffer);
+    const portStats = parsePortStats(commandOutput);
 
     for (const ps of portStats) {
       const oltPort = ps.port.replace('EPON', '');
-      console.log(
-        `${ip}\t${oltPort}\t${ps.subscribers}\t\t${ps.wireDown}\t\t${ps.dynamicOnu}`
+      rows.push(
+        `${addr.ip}\t${oltPort}\t${ps.subscribers}\t\t${ps.wireDown}\t\t${ps.dynamicOnu}`
       );
     }
 
     socket.end();
+    return rows;
   } catch (error) {
-    socket.off('data', dataHandler);
-    socket.end();
+    socket.destroy();
     throw error;
   }
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index]!);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
 }
 
 async function main() {
@@ -240,9 +255,17 @@ async function main() {
     addresses = await readAddresses(addressesFile);
   }
 
+  const username = process.env.TELNET_OLT_USERNAME;
+  const password = process.env.TELNET_OLT_PASSWORD;
+
+  if (!username || !password) {
+    console.error('Error: TELNET_OLT_USERNAME and TELNET_OLT_PASSWORD must be set in .env');
+    process.exit(1);
+  }
+
   const config: TelnetConfig = {
-    username: process.env.TELNET_OLT_USERNAME || 'admin',
-    password: process.env.TELNET_OLT_PASSWORD || 'password',
+    username,
+    password,
     timeout: parseInt(process.env.TELNET_TIMEOUT || '5000', 10)
   };
 
@@ -250,11 +273,21 @@ async function main() {
   console.log('IP\t\tPort\tSubscribers\tWire-Down\tDynamic ONU');
   console.log('-'.repeat(70));
 
-  for (const addr of addresses) {
+  let failed = 0;
+
+  const reports = await mapLimit(addresses, CONCURRENCY, async (addr) => {
     try {
-      await processOltWithSocket(addr.ip, config);
+      return await processOltWithSocket(addr, config);
     } catch (error) {
-      console.error(`Error processing ${addr.ip}:23: ${error}`);
+      failed++;
+      console.error(`Error processing ${addr.ip}:${addr.port}: ${error}`);
+      return [];
+    }
+  });
+
+  for (const rows of reports) {
+    for (const row of rows) {
+      console.log(row);
     }
   }
 
@@ -262,6 +295,11 @@ async function main() {
   const elapsedTime = (endTime - startTime) / 1000;
   console.log('-'.repeat(70));
   console.log(`Done in ${elapsedTime.toFixed(2)}s`);
+
+  if (failed > 0) {
+    console.error(`${failed} of ${addresses.length} OLT(s) failed`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch(console.error);
