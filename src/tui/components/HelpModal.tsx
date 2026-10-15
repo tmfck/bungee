@@ -23,7 +23,6 @@ export default function HelpModal(props: HelpModalProps) {
 const shortcuts = [
   { key: "F1", description: "Справка" },
   { key: "F3", description: "Поиск абонента" },
-  { key: "F5", description: "Обновить данные" },
   { key: "F10", description: "Выход" },
   { key: "F12", description: "Консоль отладки" },
   { key: "ESC", description: "Назад/Закрыть" },
