@@ -428,22 +428,25 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
 
   const connectionPoints: ConnectionPointData[] = [];
 
-  const cpRegexWithIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<\/i>?<br>\s*IP:\s*([\d.]+)<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
+  const cpRegex = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([\s\S]*?)<\/i><br>\s*(?:IP:\s*([\d.]*)<br>\s*)?порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
   let cpMatch;
-  while ((cpMatch = cpRegexWithIp.exec(html)) !== null) {
+  while ((cpMatch = cpRegex.exec(html)) !== null) {
     const cpDeviceId = cpMatch[1]!.trim();
-    const cpDeviceInfo = cpMatch[2]!.trim().replace(/&#047;/g, '/');
-    const cpIp = cpMatch[3]!.trim();
+    const cpIContent = cpMatch[2]!.replace(/&#047;/g, '/');
+    const cpIp = cpMatch[3]?.trim() || '';
     const cpPort = parseInt(cpMatch[4]!, 10);
     const cpPortName = cpMatch[5]?.trim() || undefined;
 
-    const dashIndex = cpDeviceInfo.indexOf(' - ');
-    const hashIndex = cpDeviceInfo.indexOf('#');
-    let cpModel = cpDeviceInfo;
+    // Parse device info (text before first <br>)
+    const deviceInfoRaw = cpIContent.split('<br>')[0]?.trim() || '';
+
+    const dashIndex = deviceInfoRaw.indexOf(' - ');
+    const hashIndex = deviceInfoRaw.indexOf('#');
+    let cpModel = deviceInfoRaw;
     let cpLocation = '';
     if (dashIndex > 0) {
-      cpModel = cpDeviceInfo.substring(0, dashIndex).trim();
-      const afterDash = cpDeviceInfo.substring(dashIndex + 3).trim();
+      cpModel = deviceInfoRaw.substring(0, dashIndex).trim();
+      const afterDash = deviceInfoRaw.substring(dashIndex + 3).trim();
       if (hashIndex > 0) {
         cpLocation = afterDash.substring(0, hashIndex - dashIndex - 3).trim();
       } else {
@@ -451,37 +454,15 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
       }
     }
 
-    connectionPoints.push({
-      deviceId: cpDeviceId,
-      deviceModel: cpModel,
-      deviceLocation: cpLocation,
-      ip: cpIp,
-      port: cpPort,
-      portName: cpPortName,
-    });
-  }
-
-  const cpRegexNoIp = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([^<]+)<\/i>?<br>\s*порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
-  while ((cpMatch = cpRegexNoIp.exec(html)) !== null) {
-    const cpDeviceId = cpMatch[1]!.trim();
-    const cpDeviceInfo = cpMatch[2]!.trim().replace(/&#047;/g, '/');
-    const cpPort = parseInt(cpMatch[3]!, 10);
-    const cpPortName = cpMatch[4]?.trim() || undefined;
-
     if (connectionPoints.some(cp => cp.deviceId === cpDeviceId && cp.port === cpPort)) {
       continue;
     }
 
-    const dashIndex = cpDeviceInfo.indexOf(' - ');
-    let cpModel = cpDeviceInfo;
+    let cpType: "switch" | "onu" | "olt" | "router" = "switch";
     let cpName = '';
     let cpLogin = '';
-    let cpType: "switch" | "onu" | "olt" | "router" = "switch";
-
     if (dashIndex > 0) {
-      cpModel = cpDeviceInfo.substring(0, dashIndex).trim();
-      const afterDash = cpDeviceInfo.substring(dashIndex + 3).trim();
-
+      const afterDash = deviceInfoRaw.substring(dashIndex + 3).trim();
       const secondDash = afterDash.indexOf(' - ');
       if (secondDash > 0) {
         cpName = afterDash.substring(0, secondDash).trim();
@@ -501,8 +482,8 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
     connectionPoints.push({
       deviceId: cpDeviceId,
       deviceModel: cpModel,
-      deviceLocation: '',
-      ip: '',
+      deviceLocation: cpLocation,
+      ip: cpIp,
       port: cpPort,
       portName: cpPortName,
       equipmentType: cpType,

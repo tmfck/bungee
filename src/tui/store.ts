@@ -6,8 +6,11 @@
 
 import { createSignal, createRoot } from "solid-js";
 import type { IpMacEntry, TariffEntry } from "./userside.js";
+import type { DhcpInfo } from "./dhcp.js";
+import type { NetBoxPortInfo } from "./netbox.js";
 
 export type { IpMacEntry, TariffEntry };
+export type { DhcpInfo, NetBoxPortInfo };
 
 // === Типы ===
 
@@ -96,6 +99,14 @@ export interface Equipment {
   outErrors?: number;
   // Device ID для опроса состояния портов
   deviceId?: string;
+  // MAC адреса, замеченные на порту (из DHCP логов)
+  macsOnPort?: string[];
+  // Информация о порте из NetBox (VLAN, IP, подключённое оборудование)
+  netBoxPortInfo?: NetBoxPortInfo;
+  // Информация о DHCP запросах по MAC абонента
+  dhcpInfo?: DhcpInfo;
+  // Итоговый статус VLAN на порту: "ok" | "wrong" | "unknown"
+  vlanStatus?: "ok" | "wrong" | "unknown";
 }
 
 export type EquipmentType = "switch" | "olt" | "onu" | "router";
@@ -119,6 +130,12 @@ export function createStore() {
     const [abonentLoading, setAbonentLoading] = createSignal(false);
     const [portPollError, setPortPollError] = createSignal<string | null>(null);
     const [selectedEquipmentIndex, setSelectedEquipmentIndex] = createSignal(0);
+
+    // === DHCP / NetBox загрузка состояния ===
+    const [dhcpLoading, setDhcpLoading] = createSignal(false);
+    const [dhcpError, setDhcpError] = createSignal<string | null>(null);
+    const [netboxLoading, setNetboxLoading] = createSignal(false);
+    const [netboxError, setNetboxError] = createSignal<string | null>(null);
 
     // === UI состояние ===
     const [isHelpVisible, setIsHelpVisible] = createSignal(false);
@@ -187,6 +204,28 @@ export function createStore() {
     setSelectedAbonent({ ...current, equipment: updatedEquipment });
   }
 
+  function updateEquipmentDiagData(
+    equipmentIndex: number,
+    data: {
+      macsOnPort?: string[];
+      netBoxPortInfo?: NetBoxPortInfo;
+      dhcpInfo?: DhcpInfo;
+      vlanStatus?: "ok" | "wrong" | "unknown";
+    }
+  ) {
+    const current = selectedAbonent();
+    if (!current) return;
+
+    const updatedEquipment = current.equipment.map((eq, idx) => {
+      if (idx === equipmentIndex) {
+        return { ...eq, ...data };
+      }
+      return eq;
+    });
+
+    setSelectedAbonent({ ...current, equipment: updatedEquipment });
+  }
+
   // === Методы UI ===
   function toggleHelp() {
     setIsHelpVisible((prev) => !prev);
@@ -207,6 +246,10 @@ export function createStore() {
     selectedAbonent,
     abonentLoading,
         portPollError,
+        dhcpLoading,
+        dhcpError,
+        netboxLoading,
+        netboxError,
         isHelpVisible,
         selectedEquipmentIndex,
 
@@ -218,8 +261,13 @@ export function createStore() {
         setSelectedAbonent: setFullSelectedAbonent,
         setAbonentLoading,
         setPortPollError,
+        setDhcpLoading,
+        setDhcpError,
+        setNetboxLoading,
+        setNetboxError,
         setSelectedEquipmentIndex,
         updateEquipmentPortData,
+        updateEquipmentDiagData,
 
     // Methods
     navigateTo,

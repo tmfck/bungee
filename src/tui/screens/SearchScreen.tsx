@@ -153,7 +153,6 @@ export default function SearchScreen(props: SearchScreenProps) {
       
       try {
         const details = await usersideClient.getAbonent(selected.id);
-        
           const oltInfo = parseNotesToOltInfo(details.notes || '');
 
           const abonentDetails = {

@@ -269,7 +269,7 @@ export default function AbonentScreen(props: AbonentScreenProps) {
           <text fg="#888">Нет данных об абоненте</text>
         </box>
       }>
-        <scrollbox flexDirection="column" flexGrow={1} padding={1} scrollY>
+        <scrollbox flexDirection="column" padding={1}>
           {/* Верхняя часть: ФИО слева, статус/тариф/баланс справа */}
           <box flexDirection="row" flexGrow={0} flexShrink={0}>
             <box flexDirection="column" flexGrow={1} flexShrink={1}>
