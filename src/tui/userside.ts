@@ -428,14 +428,16 @@ export function parseAbonentPage(html: string): UserSideAbonentDetails {
 
   const connectionPoints: ConnectionPointData[] = [];
 
-  const cpRegex = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([\s\S]*?)<\/i><br>\s*(?:IP:\s*([\d.]*)<br>\s*)?порт:\s*(\d+)(?:\s*\(([^)]+)\))?/g;
+  const cpRegex = /<a href="\?core_section=device&action=device&type2=show&code=(\d+)"[^>]*>[^<]*<\/a><br>\s*<i>([\s\S]*?)(?:<br>\s*(?:IP:\s*([\d.]*)<br>\s*)?порт:\s*(\d+)(?:\s*\(([^)]+)\))?\s*)?<\/i>(?:<br>\s*(?:IP:\s*([\d.]*)<br>\s*)?порт:\s*(\d+)(?:\s*\(([^)]+)\))?)?/g;
   let cpMatch;
   while ((cpMatch = cpRegex.exec(html)) !== null) {
     const cpDeviceId = cpMatch[1]!.trim();
     const cpIContent = cpMatch[2]!.replace(/&#047;/g, '/');
-    const cpIp = cpMatch[3]?.trim() || '';
-    const cpPort = parseInt(cpMatch[4]!, 10);
-    const cpPortName = cpMatch[5]?.trim() || undefined;
+    // IP/порт могут быть либо внутри <i> (актуальный HTML UserSide), либо после </i> (старый формат)
+    const cpIp = (cpMatch[3] ?? cpMatch[6])?.trim() || '';
+    const cpPortRaw = cpMatch[4] ?? cpMatch[7];
+    const cpPort = cpPortRaw ? parseInt(cpPortRaw, 10) : 0;
+    const cpPortName = (cpMatch[5] ?? cpMatch[8])?.trim() || undefined;
 
     // Parse device info (text before first <br>)
     const deviceInfoRaw = cpIContent.split('<br>')[0]?.trim() || '';
