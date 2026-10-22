@@ -64,12 +64,16 @@ const INACTIVE_COMMAND = 'show epon inactive-onu';
 // ROW: EPON0/10:3  9845.62f8.d56b deregistered  2026-10-19 17:35:33 2026-10-19 22:16:51 power-off  0.14:11:48
 //      EPON0/10:5  9845.6212.a9a7 deregistered  N/A                 2026-09-28 17:18:36 unknow     21.19:10:03
 const ROW_REGEX =
-  /(EPON\S+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+(\S+)\s+(N\/A|\d{4}[-.]\d{2}[-.]\d{2})(?:[\s.]+(\d{2}:\d{2}:\d{2}))?\s+(N\/A|\d{4}[-.]\d{2}[-.]\d{2})(?:[\s.]+(\d{2}:\d{2}:\d{2}))?\s+(\S+)\s+(\S+)/;
+  /(EPON\S+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+(\S+)\s+(N\/A|\d{4}[-.]\d{2}[-.]\d{2}[\s.]\d{2}:\d{2}:\d{2})\s+(N\/A|\d{4}[-.]\d{2}[-.]\d{2}[\s.]\d{2}:\d{2}:\d{2})\s*(\S+)\s+(\S+)/;
 
-function parseDateTime(date: string | undefined, time: string | undefined): Date | null {
-  if (!date || date === "N/A" || !time) return null;
-  const d = date.replace(/\./g, '-');
-  return new Date(`${d}T${time}`);
+function parseDateTime(dt: string | null): Date | null {
+  if (!dt || dt === "N/A") return null;
+  // Формат: 2026.10.22.17:17:33 или 2026-10-22 17:17:33
+  const m = dt.match(/^(\d{4})[-.](\d{2})[-.](\d{2})[\s.](\d{2}:\d{2}:\d{2})$/);
+  if (m) {
+    return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}`);
+  }
+  return new Date(dt);
 }
 
 function parseIntfName(intfName: string): { port: string; onu: string } {
@@ -82,25 +86,30 @@ function parseInactiveOnuOutput(output: string): InactiveOnu[] {
   const onus: InactiveOnu[] = [];
 
   // Убрать escape-последовательности терминала (backspace при --More--, ANSI коды),
-  // разрывы строк и набрать все строки ONU глобальным regex (\s+ между полями
-  // покрывает любые пробелы/переносы).
+  // и разрывы строк. Терминал может рвать время посередине секунд, поэтому склеиваем
+  // без пробела, а затем восстанавливаем разделители перед причинами и строками ONU.
   const cleaned = output
     .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') // ANSI escape sequences
     .replace(/\x08/g, '')                   // backspace
-    .replace(/\r/g, '');
-  const flat = cleaned.replace(/\n/g, ' '); // строки склеиваются через пробел, а не срастаются
+    .replace(/\r?\n/g, '');                 // склеиваем разорванные строки без пробела
+
+  // Восстановить пробел перед каждой строкой ONU
+  let flat = cleaned.replace(/(EPON\d+:\d+)/g, ' $1');
+  // Восстановить пробел между временем дерегистрации и причиной
+  flat = flat.replace(/(\d{2}:\d{2}:\d{2})(wire-down|power-off|unknow)/g, '$1 $2');
+  // Сжать múltiples пробелы в один
+  flat = flat.replace(/\s+/g, ' ');
+
   const rowRegex = new RegExp(ROW_REGEX.source, 'g');
   let match: RegExpExecArray | null;
   while ((match = rowRegex.exec(flat)) !== null) {
     const intfName = match[1]!;
     const mac = match[2]!;
     const status = match[3]!;
-    const regDate = match[4]!;
-    const regTime = match[5];
-    const deregDate = match[6]!;
-    const deregTime = match[7];
-    const reason = match[8]!;
-    const absent = match[9]!;
+    const regDt = match[4]!;
+    const deregDt = match[5]!;
+    const reason = match[6]!;
+    const absent = match[7]!;
 
     const { port, onu } = parseIntfName(intfName);
 
@@ -108,8 +117,8 @@ function parseInactiveOnuOutput(output: string): InactiveOnu[] {
       intfName,
       mac,
       status,
-      lastRegTime: parseDateTime(regDate, regTime),
-      lastDeregTime: parseDateTime(deregDate, deregTime),
+      lastRegTime: parseDateTime(regDt),
+      lastDeregTime: parseDateTime(deregDt),
       lastDeregReason: reason,
       absentTime: absent,
       port,
