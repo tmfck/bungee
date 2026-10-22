@@ -85,20 +85,21 @@ function parseIntfName(intfName: string): { port: string; onu: string } {
 function parseInactiveOnuOutput(output: string): InactiveOnu[] {
   const onus: InactiveOnu[] = [];
 
-  // Убрать escape-последовательности терминала (backspace при --More--, ANSI коды),
-  // и разрывы строк. Терминал может рвать время посередине секунд, поэтому склеиваем
-  // без пробела, а затем восстанавливаем разделители перед причинами и строками ONU.
+  // Убрать escape-последовательности терминала (backspace при --More--, ANSI коды).
+  // Разрывы строк заменяем на пробел, а затем чиним даты/время, которые терминал
+  // может рвать посередине (например, 17:17:3\r\n3).
   const cleaned = output
     .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') // ANSI escape sequences
     .replace(/\x08/g, '')                   // backspace
-    .replace(/\r?\n/g, '');                 // склеиваем разорванные строки без пробела
+    .replace(/\r?\n/g, ' ');                // разрывы строк → пробел
 
-  // Восстановить пробел перед каждой строкой ONU
-  let flat = cleaned.replace(/(EPON\d+:\d+)/g, ' $1');
-  // Восстановить пробел между временем дерегистрации и причиной
-  flat = flat.replace(/(\d{2}:\d{2}:\d{2})(wire-down|power-off|unknow)/g, '$1 $2');
-  // Сжать múltiples пробелы в один
-  flat = flat.replace(/\s+/g, ' ');
+  // Сжать множественные пробелы в один
+  let flat = cleaned.replace(/\s+/g, ' ');
+
+  // Чинить разорванные даты: 2026.10.22. 17:17:33 → 2026.10.22.17:17:33
+  flat = flat.replace(/(\d{4}[-.]\d{2}[-.]\d{2})\.? (\d{2}:\d{2}:\d{2})/g, '$1.$2');
+  // Чинить разорванное время: 17:17:3 3 → 17:17:33 (секунда рваная)
+  flat = flat.replace(/(\d{2}:\d{2}:\d) (\d)/g, '$1$2');
 
   const rowRegex = new RegExp(ROW_REGEX.source, 'g');
   let match: RegExpExecArray | null;
@@ -325,14 +326,11 @@ async function collectUntilEnd(socket: Socket, endMarker: RegExp, timeoutMs: num
     let buffer = '';
     let hasMore = false;
     let settled = false;
-    let quietTimer: NodeJS.Timeout | null = null;
-    let overallTimeout: NodeJS.Timeout | null = null;
 
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
-      if (quietTimer) clearTimeout(quietTimer);
-      if (overallTimeout) clearTimeout(overallTimeout);
+      clearTimeout(timeout);
       socket.off('data', onData);
       socket.off('end', onEnd);
       socket.off('close', onClose);
@@ -344,14 +342,11 @@ async function collectUntilEnd(socket: Socket, endMarker: RegExp, timeoutMs: num
       }
     };
 
-    const resetQuietTimer = () => {
-      if (quietTimer) clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => finish(), 3000);
-    };
-
     const checkComplete = () => {
-      const trimmed = buffer.trimEnd();
-      if (!hasMore && /#\s*$/.test(trimmed)) {
+      const lines = buffer.split('\n');
+      const lastLine = lines[lines.length - 1];
+
+      if (lastLine && endMarker.test(lastLine) && !hasMore) {
         finish();
         return true;
       }
@@ -370,16 +365,13 @@ async function collectUntilEnd(socket: Socket, endMarker: RegExp, timeoutMs: num
       }
 
       if (checkComplete()) return;
-      resetQuietTimer();
     };
 
     const onEnd = () => finish();
     const onClose = () => finish();
     const onError = (err: Error) => finish(err);
 
-    overallTimeout = setTimeout(() => finish(new Error(`Timeout waiting for command output (${endMarker})`)), timeoutMs);
-
-    resetQuietTimer();
+    const timeout = setTimeout(() => finish(new Error(`Timeout waiting for command output (${endMarker})`)), timeoutMs);
 
     socket.on('data', onData);
     socket.on('end', onEnd);
