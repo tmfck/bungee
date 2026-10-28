@@ -44,7 +44,7 @@ export default function App() {
   });
 
   // Текущий экран
-  const getScreenComponent = () => {
+  const getScreenComponent = createMemo(() => {
     const screen = store.currentScreen();
     switch (screen) {
       case "search":
@@ -56,7 +56,7 @@ export default function App() {
       case "olt":
         return <OLTScreen store={store} />;
     }
-  };
+  });
 
   // Глобальные горячие клавиши
   useKeyboard((key) => {

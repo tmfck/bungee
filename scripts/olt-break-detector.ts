@@ -22,6 +22,7 @@ import fs from 'fs';
  */
 
 import { Socket } from 'net';
+import { createUserSideClient } from '../src/tui/userside.js';
 
 const CONCURRENCY = 8;
 const COMMAND_TIMEOUT_MS = 30000;
@@ -80,6 +81,10 @@ function parseIntfName(intfName: string): { port: string; onu: string } {
   const lastColon = intfName.lastIndexOf(":");
   if (lastColon === -1) return { port: intfName, onu: "" };
   return { port: intfName.slice(0, lastColon), onu: intfName.slice(lastColon + 1) };
+}
+
+function normalizeMac(mac: string): string {
+  return mac.toLowerCase();
 }
 
 function parseInactiveOnuOutput(output: string): InactiveOnu[] {
@@ -189,6 +194,37 @@ function detectWireDown(onus: InactiveOnu[], windowMinutes = WINDOW_DEFAULT_MINU
   return result.sort((a, b) => b.onus.length - a.onus.length);
 }
 
+type UserSideClient = ReturnType<typeof createUserSideClient>;
+
+async function resolveAddressByMac(
+  userside: UserSideClient | null,
+  mac: string,
+  cache: Map<string, string | null>
+): Promise<string | null> {
+  const normalized = normalizeMac(mac);
+  if (cache.has(normalized)) return cache.get(normalized) ?? null;
+
+  if (!userside) {
+    cache.set(normalized, null);
+    return null;
+  }
+
+  let address: string | null = null;
+  try {
+    const results = await userside.search(normalized);
+    if (results.length > 0) {
+      const abonent = await userside.getAbonent(results[0]!.id);
+      const { full, apartment } = abonent.address;
+      address = apartment ? `${full}, кв. ${apartment}` : (full || null);
+    }
+  } catch {
+    address = null;
+  }
+
+  cache.set(normalized, address);
+  return address;
+}
+
 function fmtTime(d: Date): string {
   return d.toLocaleString("ru-RU", {
     year: "numeric",
@@ -210,7 +246,13 @@ const C = {
   gray: "\x1b[90m",
 };
 
-function formatReport(ip: string, port: number, pds: PortWireDown[], windowMinutes: number): string {
+function formatReport(
+  ip: string,
+  port: number,
+  pds: PortWireDown[],
+  windowMinutes: number,
+  addressByMac?: Map<string, string | null>
+): string {
   const lines: string[] = [];
   lines.push(`${C.bold}=== OLT ${ip}:${port} ===${C.reset}`);
 
@@ -224,23 +266,28 @@ function formatReport(ip: string, port: number, pds: PortWireDown[], windowMinut
 
   lines.push(`${C.yellow}wire-down ONU: ${totalWireDown}${C.reset}, ${C.red}обрывов: ${totalClusters}${C.reset}`);
 
-  for (const pd of pds) {
-    const inCluster = new Set(pd.clusters.flatMap((c) => c.onus.map((o) => o.intfName)));
-    lines.push(`${C.bold}Порт: ${pd.port} (wire-down: ${pd.onus.length})${C.reset}`);
-    for (const onu of pd.onus) {
-      const mark = inCluster.has(onu.intfName)
-        ? `${C.red}[ОБРЫВ]${C.reset}`
-        : `${C.yellow}[единично]${C.reset}`;
-      lines.push(
-        `    ${onu.intfName.padEnd(14)} ${onu.mac.padEnd(18)} ${fmtTime(onu.lastDeregTime!)}  wire-down  ${mark}`
-      );
-    }
-    for (const cluster of pd.clusters) {
-      lines.push(
-        `    ${C.bold}>>> ОБРЫВ: ${cluster.count} ONU, ${fmtTime(cluster.startTime)} → ${fmtTime(cluster.endTime)} (разброс ${cluster.spanSeconds} с)${C.reset}`
-      );
-    }
-    lines.push("");
+    for (const pd of pds) {
+      const inCluster = new Set(pd.clusters.flatMap((c) => c.onus.map((o) => o.intfName)));
+      lines.push(`${C.bold}Порт: ${pd.port} (wire-down: ${pd.onus.length})${C.reset}`);
+      for (const onu of pd.onus) {
+        if (inCluster.has(onu.intfName)) continue;
+        lines.push(
+          `    ${onu.intfName.padEnd(14)} ${onu.mac.padEnd(18)} ${fmtTime(onu.lastDeregTime!)}  wire-down  ${C.yellow}[единично]${C.reset}`
+        );
+      }
+      for (const cluster of pd.clusters) {
+        lines.push(
+          `    ${C.bold}>>> ОБРЫВ: ${cluster.count} ONU, ${fmtTime(cluster.startTime)} → ${fmtTime(cluster.endTime)} (разброс ${cluster.spanSeconds} с)${C.reset}`
+        );
+        for (const onu of cluster.onus) {
+          const address = addressByMac?.get(onu.mac);
+          const addressPart = address ? `  ${C.gray}${address}${C.reset}` : '';
+          lines.push(
+            `      ${onu.intfName.padEnd(14)} ${onu.mac.padEnd(18)} ${fmtTime(onu.lastDeregTime!)}  wire-down  ${C.red}[ОБРЫВ]${C.reset}${addressPart}`
+          );
+        }
+      }
+      lines.push("");
   }
 
   lines.push(`${C.bold}Итого wire-down: ${totalWireDown}, обрывов: ${totalClusters}${C.reset}`);
@@ -525,6 +572,12 @@ async function main() {
     timeout: parseInt(process.env.TELNET_TIMEOUT || '5000', 10)
   };
 
+  const usersideUrl = process.env.USERSIDE_URL;
+  const usersideCookie = process.env.USERSIDE_COOKIE;
+  const userside = usersideUrl && usersideCookie
+    ? createUserSideClient({ baseUrl: usersideUrl, cookie: usersideCookie })
+    : null;
+
   const debug = process.env.BUNGEE_DEBUG === '1';
   const debugPath = debug ? 'data/olt-break-debug.log' : undefined;
   if (debugPath) {
@@ -551,9 +604,28 @@ async function main() {
     return { ip: addr.ip, port: addr.port, pds: result.pds };
   });
 
+  // Resolve addresses only for ONU in break clusters via userside search by MAC
+  const addressCache = new Map<string, string | null>();
+  if (userside) {
+    const uniqueMacs = new Set<string>();
+    for (const r of reports) {
+      if (r.error) continue;
+      for (const pd of r.pds) {
+        for (const cluster of pd.clusters) {
+          for (const onu of cluster.onus) {
+            uniqueMacs.add(onu.mac);
+          }
+        }
+      }
+    }
+    await mapLimit([...uniqueMacs], 4, async (mac) => {
+      await resolveAddressByMac(userside, mac, addressCache);
+    });
+  }
+
   for (const r of reports) {
     if (r.error) continue;
-    console.log(formatReport(r.ip, r.port, r.pds, windowMinutes));
+    console.log(formatReport(r.ip, r.port, r.pds, windowMinutes, addressCache));
     console.log('-'.repeat(70));
   }
 
